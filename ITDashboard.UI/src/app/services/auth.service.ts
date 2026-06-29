@@ -127,7 +127,8 @@ export class AuthService {
     }
 
     get isAdmin(): boolean {
-        return this.cachedUserRoles.includes('Admin');
+        return this.cachedUserRoles.includes('Admin') ||
+            this.cachedUserRoles.includes('SuperAdmin');
     }
 
     // ============================================
@@ -170,7 +171,7 @@ export class AuthService {
 
     get isViewer(): boolean {
         // CEO is never a viewer
-        if (this.isCEO) return false;
+        if (this.isCEO || this.isAdmin || this.isSupervisor) return false;
         return !this.canEdit && !this.canDelete;
     }
 

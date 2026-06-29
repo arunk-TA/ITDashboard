@@ -30,8 +30,7 @@ export class MohDashboardComponent implements OnInit {
 
     ngOnInit() {
         // Point directly to .NET backend port, bypassing Angular router
-        const origin = window.location.origin;
-        const proxyUrl = `${origin}/api/moh/proxy?path=/approvalDashboard`;
+        const proxyUrl = `/api/moh/proxy?path=/approvalDashboard`;
         this.iframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(proxyUrl);
         this.loading = false;
     }

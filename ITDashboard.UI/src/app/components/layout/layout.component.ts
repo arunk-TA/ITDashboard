@@ -51,7 +51,29 @@ export class LayoutComponent implements OnInit {
     ) { }
 
     ngOnInit() {
+        console.log('🔍 isCEO:', this.auth.isCEO);
+        console.log('🔍 isAdmin:', this.auth.isAdmin);
+        console.log('🔍 isSupervisor:', this.auth.isSupervisor);
+        console.log('🔍 getUserRoles():', this.auth.getUserRoles());
+        console.log('🔍 localStorage user:', localStorage.getItem('user'));
         // Load saved sidebar state from localStorage
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                // Trigger currentUser$ emission so *ngIf re-evaluates
+                this.auth['currentUserSubject'].next(user);
+                this.auth['updateCache'](user);
+            } catch { }
+        }
+        const saved = localStorage.getItem('selectedEntity');
+        if (saved) {
+            try {
+                const entity = JSON.parse(saved);
+                this.selectedEntityId = entity.entityId ?? null;
+            } catch { }
+        }
+
         const savedState = localStorage.getItem('sidebarCollapsed');
         if (savedState !== null) {
             this.isSidebarCollapsed = savedState === 'true';
@@ -104,51 +126,85 @@ export class LayoutComponent implements OnInit {
             }
         });
     }
+    private setupPermissions(): void {
+        // Use BehaviorSubject's current value immediately (handles refresh case)
+        this.applyPermissions(this.auth.getCurrentUser());
+
+        // Also subscribe for future changes (login/logout)
+        this.auth.currentUser$.subscribe((user: any) => {
+            this.applyPermissions(user);
+            this.cdr.detectChanges();
+        });
+    }
+
+    private applyPermissions(user: any): void {
+        if (user) {
+            const roles = this.auth.getUserRoles();
+            const isCEO = roles.includes('CEO');
+            const isSupervisor = roles.includes('Supervisor');
+            const isAdmin = roles.includes('Admin');
+            const isViewer = this.auth.isViewer;
+
+            if (isViewer) {
+                this.canViewKeyRisks = false;
+                this.canViewCEOAttention = isCEO || isSupervisor || isAdmin;
+            } else {
+                this.canViewKeyRisks = true;
+                this.canViewCEOAttention = true;
+            }
+        } else {
+            this.canViewKeyRisks = false;
+            this.canViewCEOAttention = false;
+        }
+
+        this.cdr.detectChanges();
+    }
 
     // ============================================
     // PERMISSIONS SETUP
     // ============================================
-    private setupPermissions(): void {
-        this.auth.currentUser$.subscribe((user: any) => {
-            if (user) {
-                const roles = this.auth.getUserRoles();
-                const isCEO = roles.includes('CEO');
-                const isSupervisor = roles.includes('Supervisor');
-                const isAdmin = roles.includes('Admin');
-                const isViewer = this.auth.isViewer;
+    //private setupPermissions(): void {
+    //    this.auth.currentUser$.subscribe((user: any) => {
+    //        if (user) {
+    //            const roles = this.auth.getUserRoles();
+    //            const isCEO = roles.includes('CEO');
+    //            const isSupervisor = roles.includes('Supervisor');
+    //            const isAdmin = roles.includes('Admin');
+    //            const isViewer = this.auth.isViewer;
 
-                // ✅ CEO and Admin and Supervisor can view both
-                // ✅ Viewers cannot view either
-                // ✅ Raman (Viewer + CEO Attention) can view CEO Attention only
+    //            // ✅ CEO and Admin and Supervisor can view both
+    //            // ✅ Viewers cannot view either
+    //            // ✅ Raman (Viewer + CEO Attention) can view CEO Attention only
 
-                // Check if user is a Viewer (should not see Key Risks)
-                if (isViewer) {
-                    // Viewers can only see CEO Attention if they have the role
-                    this.canViewKeyRisks = false;  // Viewers CANNOT see Key Risks
-                    this.canViewCEOAttention = isCEO || isSupervisor || isAdmin;
-                } else {
-                    // Non-viewers can see both
-                    this.canViewKeyRisks = true;
-                    this.canViewCEOAttention = true;
-                }
+    //            // Check if user is a Viewer (should not see Key Risks)
+    //            if (isViewer) {
+    //                // Viewers can only see CEO Attention if they have the role
+    //                this.canViewKeyRisks = false;  // Viewers CANNOT see Key Risks
+    //                this.canViewCEOAttention = isCEO || isSupervisor || isAdmin;
+    //            } else {
+    //                // Non-viewers can see both
+    //                this.canViewKeyRisks = true;
+    //                this.canViewCEOAttention = true;
+    //            }
 
-                console.log('🔐 Menu Permissions:', {
-                    user: user.email,
-                    roles: roles,
-                    isViewer: isViewer,
-                    isCEO: isCEO,
-                    isSupervisor: isSupervisor,
-                    isAdmin: isAdmin,
-                    canViewKeyRisks: this.canViewKeyRisks,
-                    canViewCEOAttention: this.canViewCEOAttention
-                });
-            } else {
-                this.canViewKeyRisks = false;
-                this.canViewCEOAttention = false;
-            }
-            this.cdr.detectChanges();
-        });
-    }
+    //            console.log('🔐 Menu Permissions:', {
+    //                user: user.email,
+    //                roles: roles,
+    //                isViewer: isViewer,
+    //                isCEO: isCEO,
+    //                isSupervisor: isSupervisor,
+    //                isAdmin: isAdmin,
+    //                canViewKeyRisks: this.canViewKeyRisks,
+    //                canViewCEOAttention: this.canViewCEOAttention
+    //            });
+    //        } else {
+    //            this.canViewKeyRisks = false;
+    //            this.canViewCEOAttention = false;
+    //        }
+    //        this.cdr.detectChanges();
+    //    });
+    //}
+
 
     logout(): void {
         this.auth.logout();
@@ -161,6 +217,7 @@ export class LayoutComponent implements OnInit {
     }
 
     get userRole(): string {
+        if (this.auth.isSupervisor) return 'Supervisor';
         if (this.auth.isAdmin) return 'Admin';
         if (this.auth.isViewer) return 'Viewer';
         return 'User';

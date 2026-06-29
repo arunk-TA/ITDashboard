@@ -1,85 +1,6 @@
-﻿import { Component, OnInit, ElementRef, AfterViewInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-
-@Component({
-    selector: 'app-ceo-resourcing',
-    standalone: true,
-    imports: [CommonModule],
-    template: `
-        <div class="ceo-page-wrapper">
-            <div class="ceo-page-header">
-                <h2 class="ceo-page-title">
-                    <i class="ti ti-users"></i> IT Resource Dashboard
-                </h2>
-            </div>
-            <div class="ceo-content-card">
-                <div #chartHost></div>
-            </div>
-        </div>
-    `,
-    styles: [`
-        .ceo-page-wrapper {
-            padding: 24px;
-        }
-        .ceo-page-header {
-            margin-bottom: 20px;
-        }
-        .ceo-page-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin: 0 0 4px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .ceo-page-subtitle {
-            font-size: 13px;
-            color: #666;
-        }
-        .ceo-content-card {
-            background: var(--color-background-secondary, #f8f8f8);
-            border-radius: 10px;
-            padding: 24px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-        }
-    `]
-})
-export class CeoResourcingComponent implements AfterViewInit {
-    private htmlContent = `
+import{$a as s,Ha as r,La as l,_a as t,ab as n,ac as d,fa as p,pb as o}from"./chunk-S7U3Z7UO.js";var c=class i{constructor(e){this.el=e;this.htmlContent=`
         <!-- PASTE THE FULL CONTENT OF it_resource_dashboard_combined.html HERE (everything EXCEPT the <script src="chart.js"> tag) -->
-    `;
-
-    constructor(private el: ElementRef) { }
-
-    ngAfterViewInit(): void {
-        const host = this.el.nativeElement.querySelector('[\\#chartHost]') as HTMLElement ||
-            this.el.nativeElement.querySelector('div[class="ceo-content-card"] > div') as HTMLElement;
-        this.renderHTML(host);
-    }
-
-    private renderHTML(host: HTMLElement): void {
-        // 1. Inject the non-script HTML
-        host.innerHTML = this.getBodyHTML();
-
-        // 2. Load Chart.js once, then run the inline chart code
-        if ((window as any).Chart) {
-            this.runChartScript(host);
-        } else {
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
-            script.onload = () => this.runChartScript(host);
-            document.head.appendChild(script);
-        }
-    }
-
-    private runChartScript(host: HTMLElement): void {
-        const script = document.createElement('script');
-        script.textContent = this.getChartScript();
-        host.appendChild(script);
-    }
-
-    private getBodyHTML(): string {
-        return `
+    `}ngAfterViewInit(){let e=this.el.nativeElement.querySelector("[\\#chartHost]")||this.el.nativeElement.querySelector('div[class="ceo-content-card"] > div');this.renderHTML(e)}renderHTML(e){if(e.innerHTML=this.getBodyHTML(),window.Chart)this.runChartScript(e);else{let a=document.createElement("script");a.src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js",a.onload=()=>this.runChartScript(e),document.head.appendChild(a)}}runChartScript(e){let a=document.createElement("script");a.textContent=this.getChartScript(),e.appendChild(a)}getBodyHTML(){return`
 <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:1.75rem;">
   <div style="background:var(--color-background-secondary,#f0f0f0); border-radius:8px; padding:1rem;">
     <p style="font-size:13px; color:#666; margin:0 0 4px;"><i class="ti ti-users" style="font-size:14px; vertical-align:-2px; margin-right:4px;"></i>Total resources (FTE)</p>
@@ -114,9 +35,9 @@ export class CeoResourcingComponent implements AfterViewInit {
     <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:2px;background:#D4537E;flex-shrink:0;"></span>Soul Space</span><span style="color:#888;">2 - 5%</span></div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:2px;background:#378ADD;flex-shrink:0;"></span>Cancer Care</span><span style="color:#888;">2 - 5%</span></div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:2px;background:#888780;flex-shrink:0;"></span>Common Data Lake</span><span style="color:#888;">2 - 5%</span></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:2px;background:#0F6E56;flex-shrink:0;"></span>MIS</span><span style="color:#888;">2 · 5%</span></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:2px;background:#993C1D;flex-shrink:0;"></span>LIS</span><span style="color:#888;">2 · 5%</span></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:2px;background:#4A3F9E;flex-shrink:0;"></span>Stemz Bridge</span><span style="color:#888;">1 · 2%</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:2px;background:#0F6E56;flex-shrink:0;"></span>MIS</span><span style="color:#888;">2 \xB7 5%</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:2px;background:#993C1D;flex-shrink:0;"></span>LIS</span><span style="color:#888;">2 \xB7 5%</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;"><span style="display:flex;align-items:center;gap:6px;white-space:nowrap;"><span style="width:9px;height:9px;border-radius:2px;background:#4A3F9E;flex-shrink:0;"></span>Stemz Bridge</span><span style="color:#888;">1 \xB7 2%</span></div>
   </div>
 </div>
 
@@ -150,11 +71,7 @@ export class CeoResourcingComponent implements AfterViewInit {
   <canvas id="dashProjectStack"></canvas>
 </div>
 <p style="font-size:11px; color:#888; margin:10px 0 0;">"Unspecified" = Management's 3 FTE, which the source data doesn't break down by role.</p>
-        `;
-    }
-
-    private getChartScript(): string {
-        return `
+        `}getChartScript(){return`
 (function(){
   var isDark = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
   var textColor = isDark ? '#B4B2A9' : '#5F5E5A';
@@ -224,6 +141,4 @@ export class CeoResourcingComponent implements AfterViewInit {
     }]
   });
 })();
-        `;
-    }
-}
+        `}static{this.\u0275fac=function(a){return new(a||i)(r(p))}}static{this.\u0275cmp=l({type:i,selectors:[["app-ceo-resourcing"]],decls:8,vars:0,consts:[["chartHost",""],[1,"ceo-page-wrapper"],[1,"ceo-page-header"],[1,"ceo-page-title"],[1,"ti","ti-users"],[1,"ceo-content-card"]],template:function(a,g){a&1&&(t(0,"div",1)(1,"div",2)(2,"h2",3),n(3,"i",4),o(4," IT Resource Dashboard "),s()(),t(5,"div",5),n(6,"div",null,0),s()())},dependencies:[d],styles:[".ceo-page-wrapper[_ngcontent-%COMP%]{padding:24px}.ceo-page-header[_ngcontent-%COMP%]{margin-bottom:20px}.ceo-page-title[_ngcontent-%COMP%]{font-size:18px;font-weight:600;margin:0 0 4px;display:flex;align-items:center;gap:8px}.ceo-page-subtitle[_ngcontent-%COMP%]{font-size:13px;color:#666}.ceo-content-card[_ngcontent-%COMP%]{background:var(--color-background-secondary, #f8f8f8);border-radius:10px;padding:24px;box-shadow:0 1px 4px #00000012}"]})}};export{c as CeoResourcingComponent};

@@ -33,11 +33,30 @@ export class DashboardService {
         return this.http.get<any[]>(`${this.base}/tickets/${ticketId}/audit-log`);
     }
 
-    constructor(private http: HttpClient) { console.log('API Base URL:', this.base); }
+    constructor(private http: HttpClient) {
+        console.log('API Base URL:', this.base);
+
+        // ✅ Restore selected entity on page refresh
+        const saved = localStorage.getItem('selectedEntity');
+        if (saved) {
+            try {
+                const entity = JSON.parse(saved);
+                this.selectedEntitySubject.next(entity);
+            } catch {
+                localStorage.removeItem('selectedEntity');
+            }
+        }
+    }
 
     // Method to set selected entity (called from Portfolio component)
-    setSelectedEntity(entity: PortfolioSummaryModel | null) {
+    // ✅ New - matches what portfolio actually passes
+    setSelectedEntity(entity: PortfolioSummaryModel | null): void {
         this.selectedEntitySubject.next(entity);
+        if (entity) {
+            localStorage.setItem('selectedEntity', JSON.stringify(entity));
+        } else {
+            localStorage.removeItem('selectedEntity');
+        }
     }
 
     deactivateTicket(ticketId: number, reason: string): Observable<any> {

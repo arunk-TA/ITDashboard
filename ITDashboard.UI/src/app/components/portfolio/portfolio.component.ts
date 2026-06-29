@@ -329,7 +329,7 @@ export class PortfolioComponent implements OnInit {
                 orderMap.set(43, 10); // Stemz Bridge
 
                 const enriched = Array.from(entityMap.values())
-                    .sort((a, b) => (orderMap.get(a.entityId ?? 0) ?? 999) - (orderMap.get(b.entityId ?? 0) ?? 999));
+                    .sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999));
 
                 this.allEntities = enriched;
                 this.filteredEntities = [...enriched];
