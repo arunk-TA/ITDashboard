@@ -1,12 +1,12 @@
 {
   "/api": {
-    "target": "https://localhost:5001",
+    "target": "http://20.0.2.215:8080",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"
   },
   "/moh": {
-    "target": "https://localhost:5001",
+    "target": "http://20.0.2.215:8080",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"

@@ -25,7 +25,7 @@
             <!-- Key Risks Link - Show for CEO, Supervisor, Admin -->
             <!-- Also show for Viewer if they have CEO role (Raman) -->
             <a class="nav-item"
-               *ngIf="auth.isCEO || auth.isSupervisor || auth.isAdmin"
+               *ngIf="canViewKeyRisks"
                routerLink="/key-risks"
                routerLinkActive="active">
                 <i class="ti ti-alert-triangle"></i>
@@ -33,39 +33,31 @@
                 <span class="nav-badge danger" *ngIf="kpi?.overdueTickets"></span>
             </a>
 
-            <!-- CEO Attention Link - Show for CEO, Supervisor, Admin -->
-            <!-- Also show for Viewer if they have CEO role (Raman) -->
+            <!-- CEO Attention -->
             <a class="nav-item"
-               *ngIf="auth.isCEO || auth.isSupervisor || auth.isAdmin"
+               *ngIf="canViewCEOAttention"
                routerLink="/ceo-attention"
                routerLinkActive="active">
                 <i class="ti ti-star"></i>
                 <span *ngIf="!isSidebarCollapsed">CEO Attention</span>
                 <span class="nav-badge warning"></span>
             </a>
+
         </nav>
         <!-- CEO Dashboard Section — CEO, Supervisor, Admin only -->
-        <ng-container *ngIf="auth.isCEO || auth.isSupervisor || auth.isAdmin">
+        <ng-container *ngIf="canViewCEOAttention">
             <div class="nav-group-label" *ngIf="!isSidebarCollapsed">CEO Dashboard</div>
-
-            <a class="nav-item"
-               routerLink="/ceo-resourcing"
-               routerLinkActive="active">
+            <a class="nav-item" routerLink="/ceo-resourcing" routerLinkActive="active">
                 <i class="ti ti-users"></i>
                 <span *ngIf="!isSidebarCollapsed">Resourcing</span>
             </a>
-
-            <a class="nav-item"
-               routerLink="/ceo-support"
-               routerLinkActive="active">
+            <a class="nav-item" routerLink="/ceo-support" routerLinkActive="active">
                 <i class="ti ti-chart-pie"></i>
                 <span *ngIf="!isSidebarCollapsed">Support</span>
             </a>
-            <a class="nav-item"
-               routerLink="/moh-dashboard"
-               routerLinkActive="active">
+            <a class="nav-item" routerLink="/moh-dashboard" routerLinkActive="active">
                 <i class="ti ti-chart-pie"></i>
-                <span *ngIf="!isSidebarCollapsed">Time Sheeet</span>
+                <span *ngIf="!isSidebarCollapsed">Time Sheet</span>
             </a>
         </ng-container>
         <!-- Platforms Section -->

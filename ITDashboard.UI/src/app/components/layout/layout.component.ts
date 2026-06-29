@@ -51,21 +51,6 @@ export class LayoutComponent implements OnInit {
     ) { }
 
     ngOnInit() {
-        console.log('🔍 isCEO:', this.auth.isCEO);
-        console.log('🔍 isAdmin:', this.auth.isAdmin);
-        console.log('🔍 isSupervisor:', this.auth.isSupervisor);
-        console.log('🔍 getUserRoles():', this.auth.getUserRoles());
-        console.log('🔍 localStorage user:', localStorage.getItem('user'));
-        // Load saved sidebar state from localStorage
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
-            try {
-                const user = JSON.parse(userStr);
-                // Trigger currentUser$ emission so *ngIf re-evaluates
-                this.auth['currentUserSubject'].next(user);
-                this.auth['updateCache'](user);
-            } catch { }
-        }
         const saved = localStorage.getItem('selectedEntity');
         if (saved) {
             try {
@@ -79,24 +64,22 @@ export class LayoutComponent implements OnInit {
             this.isSidebarCollapsed = savedState === 'true';
         }
 
+        // ✅ Fix for hash routing — strip the # prefix
         this.router.events.pipe(
             filter((event): event is NavigationEnd => event instanceof NavigationEnd)
         ).subscribe((event: NavigationEnd) => {
-            this.showKpiBar = !this.hideKpiForRoutes.some(route =>
-                event.urlAfterRedirects.startsWith(route)
-            );
+            const url = event.urlAfterRedirects.replace(/^#/, '');
+            this.showKpiBar = !this.hideKpiForRoutes.some(route => url.startsWith(route));
             this.cdr.detectChanges();
         });
 
-        // ✅ Check initial route
-        this.showKpiBar = !this.hideKpiForRoutes.some(route =>
-            this.router.url.startsWith(route)
-        );
-
+        // ✅ Check initial route (strip hash)
+        const currentUrl = this.router.url.replace(/^#/, '');
+        this.showKpiBar = !this.hideKpiForRoutes.some(route => currentUrl.startsWith(route));
 
         this.loadEntities();
         this.loadKpi();
-        this.setupPermissions();
+        this.setupPermissions();  // ← This already reads getCurrentUser() synchronously
 
         forkJoin({
             platforms: this.svc.getPlatforms(),
