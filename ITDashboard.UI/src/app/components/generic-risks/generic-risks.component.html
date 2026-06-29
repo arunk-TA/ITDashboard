@@ -1,0 +1,173 @@
+﻿<!-- generic-risks.component.html -->
+<!-- Toast Notifications -->
+<div class="toast-container">
+    <div *ngFor="let toast of toasts"
+         class="toast"
+         [class.show]="toast.visible"
+         [class.toast-success]="toast.type === 'success'"
+         [class.toast-error]="toast.type === 'error'"
+         [class.toast-info]="toast.type === 'info'">
+        <div class="toast-content">
+            <span class="toast-icon">
+                <i *ngIf="toast.type === 'success'" class="ti ti-check-circle"></i>
+                <i *ngIf="toast.type === 'error'" class="ti ti-alert-circle"></i>
+                <i *ngIf="toast.type === 'info'" class="ti ti-info-circle"></i>
+            </span>
+            <span class="toast-message">{{ toast.message }}</span>
+        </div>
+        <button class="toast-close" (click)="dismissToast(toast.id)">×</button>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="key-risks-container">
+    <div class="page-header">
+        <h2>{{pageTitle}}</h2>
+        <button *ngIf="canCreate" class="btn-add" (click)="openAddModal()">
+            <i class="ti ti-plus"></i> {{addButtonText}}
+        </button>
+    </div>
+
+    <!-- View-Only Banner -->
+    <div *ngIf="isViewer" class="viewer-banner">
+        <i class="ti ti-eye"></i>
+        You are in <strong>View-Only</strong> mode. Edit and delete actions are disabled.
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+        <input type="text"
+               [(ngModel)]="searchTerm"
+               (input)="applyFilter()"
+               placeholder="Search items..."
+               class="filter-search" />
+        <select [(ngModel)]="filterSeverity" (change)="applyFilter()" class="filter-select">
+            <option value="">All Severities</option>
+            <option *ngFor="let s of severities" [value]="s">{{s}}</option>
+        </select>
+        <select [(ngModel)]="filterStatus" (change)="applyFilter()" class="filter-select">
+            <option value="">All Statuses</option>
+            <option *ngFor="let s of statuses" [value]="s">{{s}}</option>
+        </select>
+        <button class="btn-reset" (click)="resetFilter()">Reset</button>
+    </div>
+
+    <!-- Loading -->
+    <div *ngIf="loading" class="loading">Loading...</div>
+
+    <!-- Risks Grid -->
+    <div class="risks-grid" *ngIf="!loading">
+        <div class="risk-card" *ngFor="let risk of filteredRisks">
+            <div class="risk-header">
+                <h3>{{risk.title}}</h3>
+                <div class="risk-badges">
+                    <span class="severity-badge" [class]="getSeverityClass(risk.severity)">
+                        {{risk.severity}}
+                    </span>
+                    <span class="status-badge" [class]="getStatusClass(risk.status)">
+                        {{risk.status}}
+                    </span>
+                </div>
+            </div>
+            <div class="risk-body">
+                <div class="risk-description" [innerHTML]="risk.description"></div>
+                <div class="risk-details">
+                    <div class="detail-item">
+                        <label>Assigned To:</label>
+                        <span>{{risk.assignedTo || 'Unassigned'}}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Due Date:</label>
+                        <span>{{risk.dueDate | date:'dd-MMM-yyyy'}}</span>
+                    </div>
+                    <div class="detail-item" *ngIf="risk.mitigationPlan">
+                        <label>Mitigation Plan:</label>
+                        <span>{{risk.mitigationPlan}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="risk-actions" *ngIf="canEdit || canDelete">
+                <button *ngIf="canEdit" class="btn-edit" (click)="openEditModal(risk)">
+                    <i class="ti ti-edit"></i> Edit
+                </button>
+                <button *ngIf="canDelete" class="btn-delete" (click)="deleteRisk(risk.id!)">
+                    <i class="ti ti-trash"></i> Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- No Results -->
+    <div *ngIf="!loading && filteredRisks.length === 0" class="no-results">
+        No items found. {{canCreate ? 'Click "' + addButtonText + '" to create one.' : ''}}
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" [class.show]="showModal" (click)="closeModal()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+                <h3>{{isEditing ? 'Edit Item' : 'Add New Item'}}</h3>
+                <button class="close-btn" (click)="closeModal()">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Title *</label>
+                    <input type="text" [(ngModel)]="currentRisk.title" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Description *</label>
+                    <app-rich-text-editor [(ngModel)]="currentRisk.description"></app-rich-text-editor>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Severity</label>
+                        <select [(ngModel)]="currentRisk.severity" class="form-control">
+                            <option *ngFor="let s of severities" [value]="s">{{s}}</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select [(ngModel)]="currentRisk.status" class="form-control">
+                            <option *ngFor="let s of statuses" [value]="s">{{s}}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Assigned To</label>
+                        <input type="text" [(ngModel)]="currentRisk.assignedTo" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Due Date</label>
+                        <input type="date" [(ngModel)]="currentRisk.dueDate" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Mitigation Plan</label>
+                    <textarea [(ngModel)]="currentRisk.mitigationPlan" class="form-control" rows="2"></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-cancel" (click)="closeModal()" [disabled]="saving">Cancel</button>
+                <button class="btn-save" (click)="saveRisk()" [disabled]="saving">
+                    {{saving ? 'Saving...' : 'Save'}}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== CONFIRM DIALOG ==================== -->
+<div class="confirm-overlay" *ngIf="showConfirmDialog" (click)="onConfirmNo()">
+    <div class="confirm-dialog" (click)="$event.stopPropagation()">
+        <div class="confirm-icon">🗑️</div>
+        <div class="confirm-title">{{confirmDialogTitle}}</div>
+        <div class="confirm-message">{{confirmDialogMessage}}</div>
+        <div class="confirm-actions">
+            <button class="confirm-btn-cancel" (click)="onConfirmNo()">Cancel</button>
+            <button class="confirm-btn-ok" (click)="onConfirmYes()">Yes, Delete</button>
+        </div>
+    </div>
+</div>

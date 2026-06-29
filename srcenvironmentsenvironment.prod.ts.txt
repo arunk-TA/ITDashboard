@@ -1,0 +1,5 @@
+ngOnInit() {
+    const proxyUrl = `/api/dashboard/helpdesk/proxy`;
+    this.iframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(proxyUrl);
+    this.loading = false;
+}

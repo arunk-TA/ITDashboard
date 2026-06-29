@@ -1,0 +1,171 @@
+﻿<div class="shell">
+
+    <!-- ── SIDEBAR ────────────────────────────────────────── -->
+    <aside class="sidebar" [class.collapsed]="isSidebarCollapsed">
+        <button class="sidebar-toggle" (click)="toggleSidebar()">
+            {{ isSidebarCollapsed ? '☰' : '✕' }}
+        </button>
+        <div class="logo" (click)="goToPortfolio()" style="cursor: pointer;">
+            <div class="logo-mark">
+                <div class="logo-dot">
+                    <img src="assets/images/StemzLogo.png" alt="Stemz Logo" class="logo-img">
+                </div>
+                <span class="logo-name" *ngIf="!isSidebarCollapsed">Stemz Global</span>
+            </div>
+        </div>
+
+        <nav class="nav-group">
+            <div class="nav-group-label" *ngIf="!isSidebarCollapsed">Menu</div>
+
+            <a class="nav-item" (click)="goToPortfolio()" routerLinkActive="active">
+                <i class="ti ti-layout-dashboard"></i>
+                <span *ngIf="!isSidebarCollapsed">Home</span>
+            </a>
+
+            <!-- Key Risks Link - Show for CEO, Supervisor, Admin -->
+            <!-- Also show for Viewer if they have CEO role (Raman) -->
+            <a class="nav-item"
+               *ngIf="auth.isCEO || auth.isSupervisor || auth.isAdmin"
+               routerLink="/key-risks"
+               routerLinkActive="active">
+                <i class="ti ti-alert-triangle"></i>
+                <span *ngIf="!isSidebarCollapsed">Key Risks</span>
+                <span class="nav-badge danger" *ngIf="kpi?.overdueTickets"></span>
+            </a>
+
+            <!-- CEO Attention Link - Show for CEO, Supervisor, Admin -->
+            <!-- Also show for Viewer if they have CEO role (Raman) -->
+            <a class="nav-item"
+               *ngIf="auth.isCEO || auth.isSupervisor || auth.isAdmin"
+               routerLink="/ceo-attention"
+               routerLinkActive="active">
+                <i class="ti ti-star"></i>
+                <span *ngIf="!isSidebarCollapsed">CEO Attention</span>
+                <span class="nav-badge warning"></span>
+            </a>
+        </nav>
+        <!-- CEO Dashboard Section — CEO, Supervisor, Admin only -->
+        <ng-container *ngIf="auth.isCEO || auth.isSupervisor || auth.isAdmin">
+            <div class="nav-group-label" *ngIf="!isSidebarCollapsed">CEO Dashboard</div>
+
+            <a class="nav-item"
+               routerLink="/ceo-resourcing"
+               routerLinkActive="active">
+                <i class="ti ti-users"></i>
+                <span *ngIf="!isSidebarCollapsed">Resourcing</span>
+            </a>
+
+            <a class="nav-item"
+               routerLink="/ceo-support"
+               routerLinkActive="active">
+                <i class="ti ti-chart-pie"></i>
+                <span *ngIf="!isSidebarCollapsed">Support</span>
+            </a>
+            <a class="nav-item"
+               routerLink="/moh-dashboard"
+               routerLinkActive="active">
+                <i class="ti ti-chart-pie"></i>
+                <span *ngIf="!isSidebarCollapsed">Time Sheeet</span>
+            </a>
+        </ng-container>
+        <!-- Platforms Section -->
+        <nav class="nav-group" *ngIf="selectedEntityPlatforms && selectedEntityPlatforms.length > 0">
+            <div class="nav-group-label" *ngIf="!isSidebarCollapsed">Platforms📌 {{selectedEntityNameForPlatforms}}</div>
+            <div class="nav-group-label" *ngIf="isSidebarCollapsed">📌</div>
+            <ng-container *ngFor="let platform of selectedEntityPlatforms; trackBy: trackByPlatformId">
+                <a class="nav-item platform-item"
+                   [class.active]="selectedPlatformName === platform.name"
+                   (click)="selectPlatform(platform)">
+                    <i class="ti ti-apps"></i>
+                    <span *ngIf="!isSidebarCollapsed">{{platform.name}}</span>
+                    <span class="nav-badge">{{platform.ticketCount}}</span>
+                </a>
+            </ng-container>
+        </nav>
+
+
+        <div class="sidebar-footer">
+            <div class="user-info" *ngIf="auth.getCurrentUser()">
+                <div class="user-avatar">👤</div>
+                <div class="user-details" *ngIf="!isSidebarCollapsed">
+                    <span class="user-name">{{ userName }}</span>
+                    <span class="user-role">{{ userRole }}</span>
+                </div>
+            </div>
+            <button class="logout-btn" (click)="logout()" [title]="isSidebarCollapsed ? 'Logout' : ''">
+                <i class="ti ti-logout"></i>
+                <span *ngIf="!isSidebarCollapsed">Logout</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- ── MAIN ───────────────────────────────────────────── -->
+    <div class="main">
+
+        <!-- Topbar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <span class="page-title">IT Dashboard</span>
+            </div>
+            <div class="topbar-right">
+                <!-- Viewer Mode Indicator -->
+                <span *ngIf="auth.isViewer" class="viewer-badge">
+                    <i class="ti ti-eye"></i> View-Only Mode
+                </span>
+                <span class="user-info-text">
+                    {{ userName }}
+                    <span class="role-badge" [class.admin]="auth.isAdmin" [class.viewer]="auth.isViewer">
+                        {{ userRole }}
+                    </span>
+                </span>
+                <button class="logout-btn-topbar" (click)="logout()" title="Logout">
+                    <i class="ti ti-logout"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- KPI Bar -->
+        <div class="kpi-bar" *ngIf="kpi && showKpiBar">
+            <div class="kpi-item">
+                <span class="kpi-label">Total Tickets</span>
+                <span class="kpi-val">{{kpi.totalTickets}}</span>
+            </div>
+
+            <div class="kpi-item">
+                <span class="kpi-label">Incidents</span>
+                <span class="kpi-val">{{kpi.totalTickets -kpi.totalCr}}</span>
+            </div>
+
+            <div class="kpi-item">
+                <span class="kpi-label">Change Requests</span>
+                <span class="kpi-val">{{kpi.totalCr}}</span>
+            </div>
+
+            <div class="kpi-item">
+                <span class="kpi-label">In Progress</span>
+                <span class="kpi-val" style="color:#1a6e63">{{kpi.inProgress}}</span>
+            </div>
+
+            <div class="kpi-item">
+                <span class="kpi-label">Yet to Start</span>
+                <span class="kpi-val" style="color:#e68a00">{{kpi.yetToStart}}</span>
+            </div>
+
+            <div class="kpi-item">
+                <span class="kpi-label">Closed</span>
+                <span class="kpi-val" style="color:#2d6a1f">{{kpi.closedTickets}}</span>
+            </div>
+
+            <div class="kpi-item">
+                <span class="kpi-label">Overdue</span>
+                <span class="kpi-val" style="color:#b81c30">{{kpi.overdueTickets}}</span>
+            </div>
+        </div>
+
+        <!-- Router Outlet -->
+        <div class="content-area">
+            <router-outlet></router-outlet>
+        </div>
+
+    </div>
+</div>

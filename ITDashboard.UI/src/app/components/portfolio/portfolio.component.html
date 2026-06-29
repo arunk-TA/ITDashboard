@@ -1,0 +1,1291 @@
+﻿<!-- ==================== ENTITY + PLATFORM HEADER ROW (COMBINED) ==================== -->
+<div class="entity-header-row" *ngIf="selectedEntity && selectedPlatform">
+    <!-- Left side: Entity name with badge -->
+    <div class="entity-name-section">
+        <span class="entity-title">{{selectedEntity.entityName}}</span>
+
+    </div>
+
+    <!-- Middle: Entity stats with box border -->
+    <div class="entity-stats-row">
+        <div class="stat-box-item">
+            <span class="stat-value">{{selectedEntity.totalTickets}}</span>
+            <span class="stat-label">Total</span>
+        </div>
+        <div class="stat-box-item">
+            <span class="stat-value">{{selectedEntity.inProgress}}</span>
+            <span class="stat-label">In Progress</span>
+        </div>
+        <div class="stat-box-item">
+            <span class="stat-value">{{selectedEntity.yetToStart}}</span>
+            <span class="stat-label">Yet to Start</span>
+        </div>
+        <div class="stat-box-item">
+            <span class="stat-value">{{selectedEntity.inProduction}}</span>
+            <span class="stat-label">In Production</span>
+        </div>
+        <div class="stat-box-item">
+            <span class="entity-badge" [class.danger]="selectedEntity.overdue > 0" [class.good]="selectedEntity.overdue === 0">
+                {{selectedEntity.overdue > 0 ? selectedEntity.overdue + ' overdue' : 'Healthy'}}
+            </span>
+        </div>
+    </div>
+
+    <!-- Right side: Platform info -->
+    <div class="platform-info-section">
+        <span class="platform-icon">{{getPlatformIcon(selectedPlatform.name)}}</span>
+        <span class="platform-name">{{selectedPlatform.name}}</span>
+        <span class="platform-stats">
+            <span class="compact-stat">
+                <span class="compact-value">{{getPlatformTicketCount(selectedPlatform.id)}}</span>
+                <span class="compact-label">Total</span>
+            </span>
+            <span class="compact-stat">
+                <span class="compact-value">{{getPlatformOpenTickets(selectedPlatform.id)}}</span>
+                <span class="compact-label">Open</span>
+            </span>
+            <span class="compact-stat">
+                <span class="compact-value">{{getPlatformInProductionTickets(selectedPlatform.id)}}</span>
+                <span class="compact-label">Prod</span>
+            </span>
+        </span>
+    </div>
+</div>
+
+<!-- If no platform selected, show Portfolio Overview -->
+<div class="section-label" *ngIf="!selectedEntity || !selectedPlatform">
+    Portfolio Overview
+</div>
+<!-- ==================== ENTITY CARDS ==================== -->
+<div class="entity-grid" *ngIf="!loading && !selectedPlatform">
+    <div class="entity-card" *ngFor="let entity of filteredEntities" (click)="selectEntity(entity)">
+        <div class="entity-header">
+            <div class="entity-name">{{entity.entityName}}</div>
+            <span class="entity-badge small" [class.danger]="entity.overdue > 0" [class.good]="entity.overdue === 0">
+                {{entity.overdue > 0 ? entity.overdue + ' overdue' : 'Healthy'}}
+            </span>
+        </div>
+        <div class="stat-row">
+            <div class="stat-box">
+                <div class="stat-val total">{{entity.totalTickets}}</div>
+                <div class="stat-lbl">Total</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-val progress">{{entity.inProgress}}</div>
+                <div class="stat-lbl">In Progress</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-val yet-to-start">{{entity.yetToStart}}</div>
+                <div class="stat-lbl">Yet to Start</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-val done">{{entity.inProduction}}</div>
+                <div class="stat-lbl">In Production</div>
+            </div>
+        </div>
+        <div class="progress-wrap">
+            <div class="progress-fill" [style.width.%]="entity.totalTickets > 0 ? (entity.inProduction / entity.totalTickets * 100) : 0"></div>
+        </div>
+        <div class="progress-label">
+            {{entity.totalTickets > 0 ? ((entity.inProduction / entity.totalTickets) * 100 | number:'1.0-0') : 0}}% in production
+        </div>
+    </div>
+</div>
+
+<!-- ==================== VIEW SELECTION ==================== -->
+<div *ngIf="selectedPlatform" class="view-selection">
+    <label class="view-option">
+        <input type="radio" name="viewType" [value]="'build'" [(ngModel)]="selectedView" (change)="onViewChange()" />
+        <span class="view-label"> Build Wise</span>
+    </label>
+    <label class="view-option">
+        <input type="radio" name="viewType" [value]="'pipeline'" [(ngModel)]="selectedView" (change)="onViewChange()" />
+        <span class="view-label"> Pipeline</span>
+    </label>
+    <label class="view-option">
+        <input type="radio" name="viewType" [value]="'department'" [(ngModel)]="selectedView" (change)="onViewChange()" />
+        <span class="view-label"> Department Wise</span>
+    </label>
+</div>
+
+<!-- ==================== DEPARTMENT WISE VIEW ==================== -->
+<ng-container *ngIf="selectedView === 'department' && selectedPlatform">
+    <ng-container *ngFor="let group of platformGroupedData">
+        <div class="request-section" *ngIf="group.data.length > 0">
+            <div class="request-header dept-header">
+                <span class="request-title">{{selectedPlatform.name}} - {{group.title}}</span>
+                <span class="count-badge">{{group.data.length}} Departments</span>
+            </div>
+            <div *ngFor="let dept of group.data">
+                <div *ngIf="dept.departmentName !== 'General'">
+                    <div class="dept-header-row" (click)="toggleDeptExpand(dept)">
+                        <span class="expand-icon">{{isDeptExpanded(dept) ? '▼' : '▶'}}</span>
+                        <span class="dept-name">{{dept.departmentName}}</span>
+                        <span class="dept-count">{{dept.totalTickets}} tickets</span>
+                    </div>
+                    <div *ngIf="isDeptExpanded(dept)" class="release-details">
+                        <table class="release-table">
+                            <thead>
+                                <tr>
+                                    <th>Release No</th>
+                                    <th>Build Date</th>
+                                    <th>Description</th>
+                                    <th>Status</th>
+                                    <th style="width: 160px;">Assigned Resource</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr *ngFor="let release of dept.releases">
+                                    <td>{{release.scheduleBuildNo || '—'}}</td>
+                                    <td>{{(release.scheduleBuildDate | date:'dd MMM yyyy') || '—'}}</td>
+                                    <td class="description-cell">{{release.description || release.title || '—'}}</td>
+                                    <td>
+                                        <span class="status-badge" [class.previous]="release.statusName === 'In Production'">
+                                            {{release.statusName === 'In Production' ? 'Previous Build' : 'Current Build'}}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div *ngIf="!editingUser[getUserKey(release)]" class="user-display">
+                                            <span class="user-name" (click)="editUser(release)">{{getUserDisplayName(release.assignedUserId) || '—'}}</span>
+                                            <button *ngIf="canAssignResource" class="edit-user-btn" (click)="editUser(release)" title="Assign User">✏️</button>
+                                        </div>
+                                        <div *ngIf="editingUser[getUserKey(release)]" class="user-editor-inline">
+                                            <select [(ngModel)]="selectedUser[getUserKey(release)]" class="user-select">
+                                                <option value="0">— Select —</option>
+                                                <option *ngFor="let user of allUsers" [value]="user.id">{{user.realname || user.name}}</option>
+                                            </select>
+                                            <button class="save-user-btn" (click)="saveUser(release)" [disabled]="savingUser[getUserKey(release)]">✔</button>
+                                            <button class="cancel-user-btn" (click)="cancelUserEdit(release)">✕</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </ng-container>
+    <div class="no-data-message" *ngIf="platformGroupedData.length === 0">
+        <p>No tickets found for {{selectedPlatform.name}} platform</p>
+    </div>
+</ng-container>
+
+<!-- ==================== BUILD WISE VIEW ==================== -->
+<ng-container *ngIf="selectedView === 'build' && selectedPlatform">
+
+    <!-- Current Builds Section -->
+    <div class="request-section" *ngIf="platformCurrentBuildData.items.length > 0">
+        <div class="request-header current-header" (click)="toggleCurrentBuildsExpand()" style="cursor: pointer;">
+            <span class="expand-icon">{{isCurrentBuildsExpanded ? '▼' : '▶'}}</span>
+            <span class="request-title">Current Release</span>
+            <span class="count-badge">{{platformCurrentBuildData.items.length}} Items</span>
+            <button *ngIf="canCreate" class="add-ticket-btn"
+                    (click)="openCreateTicketModal(); $event.stopPropagation()">
+                + New Ticket
+            </button>
+
+            <!-- REPLACE the existing grn-btn button with: -->
+            <button *ngIf="canCreate" class="grn-btn"
+                    (click)="generateReleaseNotesPDF('current'); $event.stopPropagation()"
+                    title="Download Release Notes PDF">
+                📄 Generate RN
+            </button>
+
+        </div>
+        <div *ngIf="isCurrentBuildsExpanded" class="build-body">
+            <table class="project-table">
+                <thead>
+                    <tr>
+                        <th style="width:10px; text-align:center;"></th>
+                        <th style="width:10%; text-align:left;">Department</th>
+                        <th style="width:36%; text-align:left;">Description</th>
+                        <th style="width:8%; text-align:left;">Build No</th>
+                        <th style="width:9%; text-align:left;">Planned Date</th>
+                        <th style="width: 9%; text-align: center;">Build Date</th>
+                        <th style="width: 13%; text-align: center;">Assigned Resource</th>
+                        <th style="width:11%; text-align:center;">Status</th>
+                        <th style="width:9%; text-align:left;">Release Notes</th>
+                        <th style="width:44px; text-align:center;">Docs</th>
+                        <th style="width:36px; text-align:center;">Audit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <ng-container *ngFor="let item of platformCurrentBuildData.items">
+                        <tr>
+                            <td class="text-left">
+                                <button *ngIf="canDelete" class="delete-btn" (click)="confirmDeleteTicket(item)" title="Deactivate Ticket" [disabled]="deletingTicket[getTicketKey(item)]">
+                                    <i class="ti ti-trash"></i>
+                                </button>
+                                <div *ngIf="showDeleteConfirm[getTicketKey(item)]" class="delete-confirm-overlay">
+                                    <div class="delete-confirm-dialog">
+                                        <div class="delete-confirm-header">
+                                            <span>⚠️ Deactivate Ticket</span>
+                                            <button class="close-confirm" (click)="cancelDeleteTicket(item)">×</button>
+                                        </div>
+                                        <div class="delete-confirm-body">
+                                            <p>Are you sure you want to deactivate this ticket?</p>
+                                            <p class="ticket-info"><strong>Ticket #{{item.ticketNo || item.id}}</strong><br>{{item.title}}</p>
+                                            <div class="reason-input">
+                                                <label>Reason for deactivation (optional):</label>
+                                                <textarea [(ngModel)]="deleteReason[getTicketKey(item)]" rows="2" placeholder="Enter reason..."></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="delete-confirm-footer">
+                                            <button class="btn-cancel" (click)="cancelDeleteTicket(item)">Cancel</button>
+                                            <button class="btn-delete" (click)="deleteTicket(item)" [disabled]="deletingTicket[getTicketKey(item)]">{{deletingTicket[getTicketKey(item)] ? 'Deactivating...' : 'Yes, Deactivate'}}</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-left">{{item.departmentName || 'General'}}</td>
+                            <td class="text-left description-cell">{{item.description || item.title || '—'}}</td>
+                            <td class="text-left">
+                                <div *ngIf="!editingBuildNo[getTicketKey(item)]" class="inline-edit-display">
+                                    <span (click)="editBuildNo(item)" style="cursor:pointer">{{item.buildNo || '—'}}</span>
+                                    <button *ngIf="canEdit" class="edit-inline-btn" (click)="editBuildNo(item)" title="Edit Build No">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingBuildNo[getTicketKey(item)]" class="inline-edit-editor">
+                                    <input type="text" class="inline-input" [(ngModel)]="selectedNewBuildNo[getTicketKey(item)]" placeholder="e.g. v1.2.3" />
+                                    <div class="inline-actions">
+                                        <button class="save-inline-btn" (click)="saveBuildNo(item)" [disabled]="savingBuildNo[getTicketKey(item)]">✔</button>
+                                        <button class="cancel-inline-btn" (click)="cancelBuildNoEdit(item)">✕</button>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div *ngIf="!editingPlannedDate[getTicketKey(item)]" class="inline-edit-display">
+                                    <span (click)="editPlannedDate(item)">{{(item.plannedDate | date:'dd MMM yyyy') || 'TBD'}}</span>
+                                    <button *ngIf="canEdit" class="edit-inline-btn" (click)="editPlannedDate(item)" title="Edit Planned Date">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingPlannedDate[getTicketKey(item)]" class="inline-edit-editor">
+                                    <input type="date" class="inline-input" [(ngModel)]="selectedNewPlannedDate[getTicketKey(item)]" />
+                                    <div class="inline-actions">
+                                        <button class="save-inline-btn" (click)="savePlannedDate(item)" [disabled]="savingPlannedDate[getTicketKey(item)]">✔</button>
+                                        <button class="cancel-inline-btn" (click)="cancelPlannedDateEdit(item)">✕</button>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div *ngIf="!editingBuildDate[getTicketKey(item)]" class="inline-edit-display">
+                                    <span (click)="editBuildDate(item)">{{(item.scheduleBuildDate | date:'dd MMM yyyy') || 'TBD'}}</span>
+                                    <button *ngIf="canEdit" class="edit-inline-btn" (click)="editBuildDate(item)" title="Edit Build Date">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingBuildDate[getTicketKey(item)]" class="inline-edit-editor">
+                                    <input type="date" class="inline-input" [(ngModel)]="selectedNewBuildDate[getTicketKey(item)]" />
+                                    <div class="inline-actions">
+                                        <button class="save-inline-btn" (click)="saveBuildDate(item)" [disabled]="savingBuildDate[getTicketKey(item)]">✔</button>
+                                        <button class="cancel-inline-btn" (click)="cancelBuildDateEdit(item)">✕</button>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-left">
+                                <div *ngIf="!editingUser[getUserKey(item)]" class="user-display">
+                                    <span class="user-name" (click)="editUser(item)">{{getUserDisplayName(item.assignedUserId) || '—'}}</span>
+                                    <button *ngIf="canAssignResource" class="edit-user-btn" (click)="editUser(item)" title="Assign User">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingUser[getUserKey(item)]" class="user-editor-inline">
+                                    <select [(ngModel)]="selectedUser[getUserKey(item)]" class="user-select">
+                                        <option value="0">— Select —</option>
+                                        <option *ngFor="let user of allUsers" [value]="user.id">{{user.realname || user.name}}</option>
+                                    </select>
+                                    <button class="save-user-btn" (click)="saveUser(item)" [disabled]="savingUser[getUserKey(item)]">✔</button>
+                                    <button class="cancel-user-btn" (click)="cancelUserEdit(item)">✕</button>
+                                </div>
+                            </td>
+                            <td class="text-left">
+                                <div *ngIf="!editingStatus[getStatusKey(item)]" class="status-display">
+                                    <span class="status-badge" [class.yet-to-start]="item.statusName === 'Yet to Start' || item.statusName === 'Requirement Analysis'" (click)="editStatus(item)" style="cursor: pointer;">
+                                        {{item.statusName === 'Requirement Analysis' ? 'Yet to Start' : (item.statusName || '—')}}
+                                    </span>
+                                    <button *ngIf="canEdit" class="edit-status-btn" (click)="editStatus(item)" title="Edit Status">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingStatus[getStatusKey(item)]" class="status-editor-inline">
+                                    <select [(ngModel)]="selectedNewStatus[getStatusKey(item)]" class="status-select">
+                                        <option *ngFor="let status of availableStatuses" [value]="status.fieldName">{{status.fieldName}}</option>
+                                    </select>
+                                    <button class="save-status-btn" (click)="saveStatus(item)" [disabled]="savingStatus[getStatusKey(item)]">✔</button>
+                                    <button class="cancel-status-btn" (click)="cancelStatusEdit(item)">✕</button>
+                                </div>
+                            </td>
+                            <td class="text-left">
+                                <button class="note-btn" [class.has-note]="!showTextEditor[getTicketKey(item)] && releaseNoteContent[getTicketKey(item)]" (click)="toggleTextEditor(item)">
+                                    <span *ngIf="showTextEditor[getTicketKey(item)]">✕ Close</span>
+                                    <span *ngIf="!showTextEditor[getTicketKey(item)]">
+                                        <span *ngIf="releaseNoteContent[getTicketKey(item)]">Edit Note</span>
+                                        <span *ngIf="!releaseNoteContent[getTicketKey(item)]">Add Note</span>
+                                    </span>
+                                </button>
+                            </td>
+                            <!-- In the Docs <td> — replace the existing one -->
+                            <td class="text-left">
+                                <div class="upload-btn-small"
+                                     (click)="triggerTicketFileInput(item.id); $event.stopPropagation()">
+                                    <span *ngIf="uploadingDoc['ticket_' + item.id]">⏳</span>
+                                    <span *ngIf="!uploadingDoc['ticket_' + item.id]">+</span>
+                                </div>
+                                <input type="file"
+                                       [id]="'fileInput_ticket_' + item.id"
+                                       style="display:none"
+                                       (change)="onTicketDocFileSelected($event, item)"
+                                       accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip" />
+
+                                <!-- ✅ Show uploaded file names -->
+                                <div class="uploaded-files"
+                                      *ngIf="buildDocs['ticket_' + item.id] && buildDocs['ticket_' + item.id].length > 0">
+                                    <div class="file-item"
+                                         *ngFor="let doc of buildDocs['ticket_' + item.id]">
+                                        <a [href]="apiBaseUrl + doc.filePath"
+                                           target="_blank"
+                                           class="file-name"
+                                           title="{{doc.fileName}}">
+                                            {{doc.fileName | slice:0:12}}{{doc.fileName.length > 12 ? '…' : ''}}
+                                        </a>
+                                        <button class="delete-file-btn"
+                                                (click)="deleteTicketDoc(item, doc.id); $event.stopPropagation()"
+                                                title="Delete {{doc.fileName}}">
+                                            🗑️
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Show when no docs yet -->
+                                <div *ngIf="!buildDocs['ticket_' + item.id] || buildDocs['ticket_' + item.id].length === 0"
+                                     style="font-size:8pt;color:#aaa;">
+                                    No docs
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <button class="audit-btn"
+                                        *ngIf="!isViewer"
+                                        (click)="openAuditLogModal(item, $event)"
+                                        title="View Audit Log">
+                                    <i class="ti ti-info-circle"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr *ngIf="showTextEditor[getTicketKey(item)]" class="editor-row">
+                            <td colspan="10">
+                                <div class="release-note-editor">
+                                    <div class="editor-header">
+                                        <strong>Notes - Build {{item.buildNo || 'Future Release'}}</strong>
+                                        <button class="close-editor-btn" (click)="showTextEditor[getTicketKey(item)] = false">×</button>
+                                    </div>
+                                    <div *ngIf="loadingReleaseNote[getTicketKey(item)]" class="loading-state">Loading...</div>
+                                    <app-rich-text-editor *ngIf="!loadingReleaseNote[getTicketKey(item)]" [(ngModel)]="releaseNoteContent[getTicketKey(item)]"></app-rich-text-editor>
+                                    <div class="editor-actions">
+                                        <button class="save-btn" (click)="saveReleaseNote(item)" [disabled]="savingReleaseNote[getTicketKey(item)]">Save</button>
+                                        <button class="cancel-btn" (click)="showTextEditor[getTicketKey(item)] = false">Cancel</button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr *ngIf="showDocsPanel['ticket_' + item.id]" class="docs-row">
+                            <td [colSpan]="10">
+                                <ng-container *ngTemplateOutlet="ticketDocPanel; context: { item: item }"></ng-container>
+                            </td>
+                        </tr>
+                    </ng-container>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Future Releases Section -->
+    <div class="request-section" *ngIf="platformFutureReleasesData.items.length > 0">
+        <div class="request-header future-header" (click)="toggleFutureReleasesExpand()" style="cursor: pointer;">
+            <span class="expand-icon">{{isFutureReleasesExpanded ? '▼' : '▶'}}</span>
+            <span class="request-title">Future Release</span>
+            <span class="count-badge">{{platformFutureReleasesData.items.length}} Items</span>
+            <button *ngIf="canCreate" class="add-ticket-btn"
+                    (click)="openCreateTicketModal(); $event.stopPropagation()">
+                + New Ticket
+            </button>
+            <!-- REPLACE the existing grn-btn button with: -->
+            <button *ngIf="canCreate" class="grn-btn"
+                    (click)="generateReleaseNotesPDF('future'); $event.stopPropagation()"
+                    title="Download Release Notes PDF">
+                📄 Generate FRN
+            </button>
+        </div>
+        <div *ngIf="isFutureReleasesExpanded" class="build-body">
+            <table class="project-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"></th>
+                        <th>Department</th>
+                        <th>Description</th>
+                        <th>Build No</th>
+                        <th>Planned Date</th>
+                        <th>Build Date</th>
+                        <th style="width: 160px;">Assigned Resource</th>
+                        <th style="width: 140px;">Status</th>
+                        <th style="width: 140px;">Release Notes</th>
+                        <th style="width: 60px;">Docs Upload</th>
+                        <th style="width: 30px;">Audit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <ng-container *ngFor="let item of platformFutureReleasesData.items">
+                        <tr>
+                            <td class="text-left">
+                                <button *ngIf="canDelete" class="delete-btn" (click)="confirmDeleteTicket(item)" title="Deactivate Ticket" [disabled]="deletingTicket[getTicketKey(item)]">
+                                    <i class="ti ti-trash"></i>
+                                </button>
+                                <div *ngIf="showDeleteConfirm[getTicketKey(item)]" class="delete-confirm-overlay">
+                                    <div class="delete-confirm-dialog">
+                                        <div class="delete-confirm-header">
+                                            <span>⚠️ Deactivate Ticket</span>
+                                            <button class="close-confirm" (click)="cancelDeleteTicket(item)">×</button>
+                                        </div>
+                                        <div class="delete-confirm-body">
+                                            <p>Are you sure you want to deactivate this ticket?</p>
+                                            <p class="ticket-info"><strong>Ticket #{{item.ticketNo || item.id}}</strong><br>{{item.title}}</p>
+                                            <div class="reason-input">
+                                                <label>Reason for deactivation (optional):</label>
+                                                <textarea [(ngModel)]="deleteReason[getTicketKey(item)]" rows="2" placeholder="Enter reason..."></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="delete-confirm-footer">
+                                            <button class="btn-cancel" (click)="cancelDeleteTicket(item)">Cancel</button>
+                                            <button class="btn-delete" (click)="deleteTicket(item)" [disabled]="deletingTicket[getTicketKey(item)]">{{deletingTicket[getTicketKey(item)] ? 'Deactivating...' : 'Yes, Deactivate'}}</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-left">{{item.departmentName || 'General'}}</td>
+                            <td class="text-left description-cell">{{item.description || item.title || '—'}}</td>
+                            <td class="text-left">
+                                <div *ngIf="!editingBuildNo[getTicketKey(item)]" class="inline-edit-display">
+                                    <span (click)="editBuildNo(item)" style="cursor:pointer">{{item.buildNo || '—'}}</span>
+                                    <button *ngIf="canEdit" class="edit-inline-btn" (click)="editBuildNo(item)" title="Edit Build No">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingBuildNo[getTicketKey(item)]" class="inline-edit-editor">
+                                    <input type="text" class="inline-input" [(ngModel)]="selectedNewBuildNo[getTicketKey(item)]" placeholder="e.g. v1.2.3" />
+                                    <div class="inline-actions">
+                                        <button class="save-inline-btn" (click)="saveBuildNo(item)" [disabled]="savingBuildNo[getTicketKey(item)]">✔</button>
+                                        <button class="cancel-inline-btn" (click)="cancelBuildNoEdit(item)">✕</button>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div *ngIf="!editingPlannedDate[getTicketKey(item)]" class="inline-edit-display">
+                                    <span (click)="editPlannedDate(item)">{{(item.plannedDate | date:'dd MMM yyyy') || 'TBD'}}</span>
+                                    <button *ngIf="canEdit" class="edit-inline-btn" (click)="editPlannedDate(item)" title="Edit Planned Date">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingPlannedDate[getTicketKey(item)]" class="inline-edit-editor">
+                                    <input type="date" class="inline-input" [(ngModel)]="selectedNewPlannedDate[getTicketKey(item)]" />
+                                    <div class="inline-actions">
+                                        <button class="save-inline-btn" (click)="savePlannedDate(item)" [disabled]="savingPlannedDate[getTicketKey(item)]">✔</button>
+                                        <button class="cancel-inline-btn" (click)="cancelPlannedDateEdit(item)">✕</button>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-left">
+                                <div *ngIf="!editingBuildDate[getTicketKey(item)]" class="inline-edit-display">
+                                    <span (click)="editBuildDate(item)" style="cursor:pointer">{{(item.scheduleBuildDate | date:'dd MMM yyyy') || 'TBD'}}</span>
+                                    <button *ngIf="canEdit" class="edit-inline-btn" (click)="editBuildDate(item)" title="Edit Build Date">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingBuildDate[getTicketKey(item)]" class="inline-edit-editor">
+                                    <input type="date" class="inline-input" [(ngModel)]="selectedNewBuildDate[getTicketKey(item)]" />
+                                    <div class="inline-actions">
+                                        <button class="save-inline-btn" (click)="saveBuildDate(item)" [disabled]="savingBuildDate[getTicketKey(item)]">✔</button>
+                                        <button class="cancel-inline-btn" (click)="cancelBuildDateEdit(item)">✕</button>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-left">
+                                <div *ngIf="!editingUser[getUserKey(item)]" class="user-display">
+                                    <span class="user-name" (click)="editUser(item)">{{getUserDisplayName(item.assignedUserId) || '—'}}</span>
+                                    <button *ngIf="canAssignResource" class="edit-user-btn" (click)="editUser(item)" title="Assign User">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingUser[getUserKey(item)]" class="user-editor-inline">
+                                    <select [(ngModel)]="selectedUser[getUserKey(item)]" class="user-select">
+                                        <option value="0">— Select —</option>
+                                        <option *ngFor="let user of allUsers" [value]="user.id">{{user.realname || user.name}}</option>
+                                    </select>
+                                    <button class="save-user-btn" (click)="saveUser(item)" [disabled]="savingUser[getUserKey(item)]">✔</button>
+                                    <button class="cancel-user-btn" (click)="cancelUserEdit(item)">✕</button>
+                                </div>
+                            </td>
+                            <td class="text-left">
+                                <div *ngIf="!editingStatus[getStatusKey(item)]" class="status-display">
+                                    <span class="status-badge" [class.yet-to-start]="item.statusName === 'Yet to Start' || item.statusName === 'Requirement Analysis'" (click)="editStatus(item)" style="cursor: pointer;">
+                                        {{item.statusName === 'Requirement Analysis' ? 'Yet to Start' : (item.statusName || '—')}}
+                                    </span>
+                                    <button *ngIf="canEdit" class="edit-status-btn" (click)="editStatus(item)" title="Edit Status">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingStatus[getStatusKey(item)]" class="status-editor-inline">
+                                    <select [(ngModel)]="selectedNewStatus[getStatusKey(item)]" class="status-select">
+                                        <option *ngFor="let status of availableStatuses" [value]="status.fieldName">{{status.fieldName}}</option>
+                                    </select>
+                                    <button class="save-status-btn" (click)="saveStatus(item)" [disabled]="savingStatus[getStatusKey(item)]">✔</button>
+                                    <button class="cancel-status-btn" (click)="cancelStatusEdit(item)">✕</button>
+                                </div>
+                            </td>
+                            <td class="text-left">
+                                <button class="note-btn" (click)="toggleTextEditor(item)">
+                                    <span *ngIf="showTextEditor[getTicketKey(item)]">✕ Close</span>
+                                    <span *ngIf="!showTextEditor[getTicketKey(item)]">
+                                        <span *ngIf="releaseNoteContent[getTicketKey(item)]">Edit Note</span>
+                                        <span *ngIf="!releaseNoteContent[getTicketKey(item)]">Add Note</span>
+                                    </span>
+                                </button>
+                            </td>
+                            <!-- In the Docs <td> — replace the existing one -->
+                            <td class="text-left">
+                                <div class="upload-btn-small"
+                                     (click)="triggerTicketFileInput(item.id); $event.stopPropagation()">
+                                    <span *ngIf="uploadingDoc['ticket_' + item.id]">⏳</span>
+                                    <span *ngIf="!uploadingDoc['ticket_' + item.id]">+</span>
+                                </div>
+                                <input type="file"
+                                       [id]="'fileInput_ticket_' + item.id"
+                                       style="display:none"
+                                       (change)="onTicketDocFileSelected($event, item)"
+                                       accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip" />
+
+                                <!-- ✅ Show uploaded file names -->
+                                <div class="uploaded-files"
+*ngIf="buildDocs['ticket_' + item.id] && buildDocs['ticket_' + item.id].length > 0">
+                                    <div class="file-item"
+                                         *ngFor="let doc of buildDocs['ticket_' + item.id]">
+                                        <a [href]="apiBaseUrl + doc.filePath"
+                                           target="_blank"
+                                           class="file-name"
+                                           title="{{doc.fileName}}">
+                                            {{doc.fileName | slice:0:12}}{{doc.fileName.length > 12 ? '…' : ''}}
+                                        </a>
+                                        <button class="delete-file-btn"
+                                                (click)="deleteTicketDoc(item, doc.id); $event.stopPropagation()"
+                                                title="Delete {{doc.fileName}}">
+                                            🗑️
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Show when no docs yet -->
+                                <div *ngIf="!buildDocs['ticket_' + item.id] || buildDocs['ticket_' + item.id].length === 0"
+                                     style="font-size:8pt;color:#aaa;">
+                                    No docs
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <button class="audit-btn"
+                                        *ngIf="!isViewer"
+                                        (click)="openAuditLogModal(item, $event)"
+                                        title="View Audit Log">
+                                    <i class="ti ti-info-circle"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr *ngIf="showTextEditor[getTicketKey(item)]" class="editor-row">
+                            <td colspan="10">
+                                <div class="release-note-editor">
+                                    <div class="editor-header">
+                                        <strong>Release Notes - {{item.description || item.title}}</strong>
+                                        <button class="close-editor-btn" (click)="showTextEditor[getTicketKey(item)] = false">×</button>
+                                    </div>
+                                    <div *ngIf="loadingReleaseNote[getTicketKey(item)]" class="loading-state">Loading...</div>
+                                    <app-rich-text-editor *ngIf="!loadingReleaseNote[getTicketKey(item)]" [(ngModel)]="releaseNoteContent[getTicketKey(item)]"></app-rich-text-editor>
+                                    <div class="editor-actions">
+                                        <button class="save-btn" (click)="saveReleaseNote(item)" [disabled]="savingReleaseNote[getTicketKey(item)]">Save</button>
+                                        <button class="cancel-btn" (click)="showTextEditor[getTicketKey(item)] = false">Cancel</button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </ng-container>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Previous Builds Section -->
+    <div class="request-section" *ngIf="platformPreviousBuildsData.length > 0">
+        <div class="request-header previous-header" (click)="togglePreviousBuildsExpand()" style="cursor: pointer;">
+            <span class="expand-icon">{{isPreviousBuildsExpanded ? '▼' : '▶'}}</span>
+            <span class="request-title">Previous Releases</span>
+            <span class="count-badge">{{platformPreviousBuildsData.length}} Builds</span>
+        </div>
+        <div *ngIf="isPreviousBuildsExpanded">
+            <div *ngFor="let build of platformPreviousBuildsData" class="previous-build-group">
+                <div class="build-header" (click)="toggleBuildExpand(build); $event.stopPropagation()">
+                    <span class="expand-icon">{{isBuildExpanded(build) ? '▼' : '▶'}}</span>
+                    <span class="build-title">Build: {{build.buildNo}}</span>
+                    <span class="build-date">Released: {{(build.buildDate | date:'dd MMM yyyy') || 'TBD'}}</span>
+                    <span class="build-count">{{build.items.length}} Items</span>
+                    <span class="build-docs-upload" (click)="$event.stopPropagation()">
+                        <span class="upload-btn-small" (click)="triggerFileInputForBuild(build.buildNo)">+</span>
+                        <input type="file" [id]="'fileInput_build_' + build.buildNo" style="display:none" (change)="onDocFileSelectedForBuild($event, build)" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip" />
+                        <span class="uploaded-files-inline" *ngIf="buildDocs[build.buildNo] && buildDocs[build.buildNo].length > 0">
+                            <span class="file-item" *ngFor="let doc of buildDocs[build.buildNo]">
+                                <a [href]="apiBaseUrl + doc.filePath" target="_blank" class="file-name">{{doc.fileName}}</a>
+                                <button class="delete-file-btn" (click)="deleteDocForBuild(build, doc.id); $event.stopPropagation()" title="Delete">🗑️</button>
+                            </span>
+                        </span>
+                    </span>
+                </div>
+                <div *ngIf="isBuildExpanded(build)" class="build-body">
+                    <table class="release-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;"></th>
+                                <th style="text-align: left;">Release No</th>
+                                <th style="text-align: left;">Department</th>
+                                <th style="text-align: left;">Description</th>
+                                <th style="text-align: left;">Planned Date</th>
+                                <th style="text-align: left;">Build Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr *ngFor="let item of build.items">
+                                <td class="text-left">
+                                    <button *ngIf="canDelete" class="delete-btn" (click)="confirmDeleteTicket(item)" title="Deactivate Ticket" [disabled]="deletingTicket[getTicketKey(item)]">
+                                        <i class="ti ti-trash"></i>
+                                    </button>
+                                    <div *ngIf="showDeleteConfirm[getTicketKey(item)]" class="delete-confirm-overlay">
+                                        <div class="delete-confirm-dialog">
+                                            <div class="delete-confirm-header">
+                                                <span>⚠️ Deactivate Ticket</span>
+                                                <button class="close-confirm" (click)="cancelDeleteTicket(item)">×</button>
+                                            </div>
+                                            <div class="delete-confirm-body">
+                                                <p>Are you sure you want to deactivate this ticket?</p>
+                                                <p class="ticket-info"><strong>Ticket #{{item.ticketNo || item.id}}</strong><br>{{item.title}}</p>
+                                                <div class="reason-input">
+                                                    <label>Reason for deactivation (optional):</label>
+                                                    <textarea [(ngModel)]="deleteReason[getTicketKey(item)]" rows="2" placeholder="Enter reason..."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="delete-confirm-footer">
+                                                <button class="btn-cancel" (click)="cancelDeleteTicket(item)">Cancel</button>
+                                                <button class="btn-delete" (click)="deleteTicket(item)" [disabled]="deletingTicket[getTicketKey(item)]">
+                                                    {{deletingTicket[getTicketKey(item)] ? 'Deactivating...' : 'Yes, Deactivate'}}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-left">{{item.buildNo || '—'}}</td>
+                                <td class="text-left">{{item.departmentName || 'General'}}</td>
+                                <td class="text-left description-cell">{{item.description || item.title || '—'}}</td>
+                                <td class="text-left">{{(item.plannedDate | date:'dd MMM yyyy') || 'TBD'}}</td>
+                                <td class="text-left">{{(item.scheduleBuildDate | date:'dd MMM yyyy') || 'TBD'}}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="no-data-message" *ngIf="platformFutureReleasesData.items.length === 0 && platformPreviousBuildsData.length === 0 && platformCurrentBuildData.items.length === 0">
+        <p>No build data found for {{selectedPlatform.name}} platform</p>
+    </div>
+</ng-container>
+
+<!-- ==================== PIPELINE VIEW ==================== -->
+<ng-container *ngIf="selectedView === 'pipeline' && selectedPlatform">
+    <div class="pipeline-view-container">
+        <div class="pipeline-header">
+            <div class="section-label">CR Pipeline - {{selectedPlatform.name}} Platform</div>
+            <span class="count-badge">{{filteredPipelineTickets.length}} CRs</span>
+        </div>
+        <div class="toolbar">
+            <select class="ctrl-select" [(ngModel)]="filterPriority" (ngModelChange)="applyPipelineFilter()">
+                <option value="">All Priorities</option>
+                <option *ngFor="let p of priorityList" [value]="p.fieldName">{{p.fieldName}}</option>
+            </select>
+            <input class="search-box" type="text" placeholder="Search title / assignee…" [(ngModel)]="pipelineSearchTerm" (input)="applyPipelineFilter()" />
+        </div>
+        <div class="pipe-wrap" *ngIf="!pipelineLoading">
+            <div class="pipe-col" *ngFor="let stage of pipelineStages">
+                <div class="pipe-header" [style.border-top]="'3px solid ' + stage.color">
+                    <span>{{stage.label}}</span>
+                    <span class="pipe-count" [style.background]="stage.color + '20'" [style.color]="stage.color">{{getPipelineCards(stage.statuses).length}}</span>
+                </div>
+                <div class="pipe-body">
+                    <div class="pipe-card" *ngFor="let t of getPipelineCards(stage.statuses)">
+                        <div class="pipe-card-id"><span class="ticket-id">#{{t.ticketNo}}</span><span class="build-no" *ngIf="t.scheduleBuildNo"> · {{t.scheduleBuildNo}}</span></div>
+                        <div class="pipe-card-title">{{t.title}}</div>
+                        <div class="pipe-card-proj">{{t.entityName}} — {{t.categoryName}}</div>
+                        <div class="pipe-card-footer">
+                            <span class="badge" [ngClass]="getPipelinePriorityClass(t.priorityName)">{{t.priorityName || '—'}}</span>
+                            <span class="badge b-gray" *ngIf="t.assignee">{{t.assignee}}</span>
+                        </div>
+                        <div class="overdue-flag" *ngIf="isPipelineOverdue(t.plannedDate)">⚠ Overdue {{getPipelineDaysDiff(t.plannedDate)}}d</div>
+                    </div>
+                    <div class="empty-lane" *ngIf="getPipelineCards(stage.statuses).length === 0">No items</div>
+                </div>
+            </div>
+        </div>
+        <div class="loading" *ngIf="pipelineLoading">Loading pipeline...</div>
+        <div class="no-data-message" *ngIf="!pipelineLoading && filteredPipelineTickets.length === 0"><p>No Change Requests found for {{selectedPlatform.name}} platform</p></div>
+    </div>
+</ng-container>
+
+<!-- ==================== TICKET DOCS PANEL TEMPLATE ==================== -->
+<ng-template #ticketDocPanel let-item="item">
+    <div class="docs-panel ticket-docs-panel">
+        <div class="docs-panel-header">
+            <div class="docs-panel-title">
+                <span class="docs-icon">📎</span>
+                <strong>Documents</strong>
+                <span class="doc-total-badge" *ngIf="buildDocs['ticket_' + item.id] && buildDocs['ticket_' + item.id].length > 0">
+                    {{buildDocs['ticket_' + item.id].length}} file(s)
+                </span>
+            </div>
+            <button class="upload-btn" type="button" (click)="triggerTicketFileInput(item.id)" [disabled]="uploadingDoc['ticket_' + item.id]">＋ Choose File</button>
+            <input type="file" [id]="'fileInput_ticket_' + item.id" style="display:none" (change)="onTicketDocFileSelected($event, item)" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip" />
+        </div>
+        <div *ngIf="pendingDocFiles['ticket_' + item.id]" class="pending-upload-box">
+            <div class="pending-file-info">
+                <span class="pending-icon">{{getFileIcon(pendingDocFiles['ticket_' + item.id]!.name)}}</span>
+                <div class="pending-file-details">
+                    <span class="pending-file-name">{{pendingDocFiles['ticket_' + item.id]!.name}}</span>
+                    <span class="pending-file-size">{{(pendingDocFiles['ticket_' + item.id]!.size / 1024).toFixed(1)}} KB</span>
+                </div>
+            </div>
+            <div class="pending-actions">
+                <button class="btn-save-doc" type="button" (click)="confirmTicketUploadDoc(item)" [disabled]="uploadingDoc['ticket_' + item.id]">⬆ Upload</button>
+                <button class="btn-cancel-doc" type="button" (click)="cancelTicketPendingUpload(item.id)" [disabled]="uploadingDoc['ticket_' + item.id]">✕ Cancel</button>
+            </div>
+        </div>
+        <div *ngIf="uploadingDoc['ticket_' + item.id]" class="upload-progress-bar"><div class="upload-progress-fill"></div></div>
+        <div *ngIf="uploadSuccess['ticket_' + item.id]" class="upload-success-msg">✅ File uploaded successfully!</div>
+        <div *ngIf="loadingDocs['ticket_' + item.id]" class="loading-state"><span class="spinner"></span> Loading documents...</div>
+        <div *ngIf="!loadingDocs['ticket_' + item.id]">
+            <div *ngIf="!buildDocs['ticket_' + item.id] || buildDocs['ticket_' + item.id].length === 0" class="no-docs"><span>📭</span> No documents uploaded.</div>
+            <div class="doc-list" *ngIf="buildDocs['ticket_' + item.id] && buildDocs['ticket_' + item.id].length > 0">
+                <div class="doc-item" *ngFor="let doc of buildDocs['ticket_' + item.id]">
+                    <span class="doc-icon">{{getFileIcon(doc.fileName)}}</span>
+                    <div class="doc-info">
+                        <a [href]="apiBaseUrl + doc.filePath" target="_blank" class="doc-name">{{doc.fileName}}</a>
+                        <span class="doc-date">{{doc.uploadedDate | date:'dd MMM yyyy'}}</span>
+                    </div>
+                    <button class="btn-delete-doc" type="button" (click)="deleteTicketDoc(item, doc.id)" title="Delete">✖</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</ng-template>
+
+<!-- ==================== CONFIRM DIALOG ==================== -->
+<div class="confirm-overlay" *ngIf="showConfirmDialog" (click)="onConfirmNo()">
+    <div class="confirm-dialog" (click)="$event.stopPropagation()">
+        <div class="confirm-icon">🗑️</div>
+        <div class="confirm-title">Confirm Delete</div>
+        <div class="confirm-message">{{confirmDialogMessage}}</div>
+        <div class="confirm-actions">
+            <button class="confirm-btn-cancel" (click)="onConfirmNo()">Cancel</button>
+            <button class="confirm-btn-ok" (click)="onConfirmYes()">Yes, Delete</button>
+        </div>
+    </div>
+</div>
+<!-- ==================== CREATE TICKET MODAL ==================== -->
+<div class="modal-overlay" *ngIf="showCreateTicketModal" (click)="closeCreateTicketModal()">
+    <div class="create-ticket-modal" (click)="$event.stopPropagation()">
+        <!-- Modal Header -->
+        <div class="modal-header">
+            <div class="modal-title">
+                <span class="modal-icon">🎫</span>
+                <span>Create New Ticket</span>
+                <span class="modal-subtitle" *ngIf="selectedPlatform">
+                    {{selectedPlatform.name}} · {{selectedEntity?.entityName}}
+                </span>
+            </div>
+            <button class="modal-close-btn" (click)="closeCreateTicketModal()">✕</button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="modal-body">
+            <form #ticketForm="ngForm" (ngSubmit)="saveNewTicket()">
+                <!-- Title & Description -->
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label class="form-label">Title <span class="required">*</span></label>
+                        <input type="text"
+                               class="form-control"
+                               [(ngModel)]="newTicket.title"
+                               name="title"
+                               placeholder="Enter ticket title"
+                               required />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control"
+                                  [(ngModel)]="newTicket.description"
+                                  name="description"
+                                  rows="3"
+                                  placeholder="Enter ticket description"></textarea>
+                    </div>
+                </div>
+
+                <!-- Two Column Layout -->
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label class="form-label">Type</label>
+                        <select class="form-control" [(ngModel)]="newTicket.typeId" name="typeId">
+                            <option [value]="1">CR</option>
+                            <option [value]="2">Issue</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-control" [(ngModel)]="newTicket.statusId" name="statusId">
+                            <option [value]="null">— Select —</option>
+                            <option *ngFor="let s of availableStatuses" [value]="s.id">{{s.fieldName}}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label class="form-label">Priority</label>
+                        <select class="form-control" [(ngModel)]="newTicket.priorityId" name="priorityId">
+                            <option [value]="null">— Select —</option>
+                            <option *ngFor="let p of priorityList" [value]="p.id">{{p.fieldName}}</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Department</label>
+                        <select class="form-control" [(ngModel)]="newTicket.departmentId" name="departmentId">
+                            <option [value]="null">— Select —</option>
+                            <option *ngFor="let d of allDepartments" [value]="d.id">{{d.fieldName}}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label class="form-label">Category</label>
+                        <select class="form-control" [(ngModel)]="newTicket.categoryId" name="categoryId">
+                            <option [value]="null">— Select —</option>
+                            <option *ngFor="let c of allCategories" [value]="c.id">{{c.categoryName}}</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Assigned Resource</label>
+                        <select class="form-control" [(ngModel)]="newTicket.assignedUserId" name="assignedUserId">
+                            <option [value]="null">— Select —</option>
+                            <option *ngFor="let u of allUsers" [value]="u.id">{{u.realname || u.name}}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Dates Section -->
+                <div class="section-divider">
+                    <span class="divider-label">Schedule</span>
+                </div>
+
+                <div class="form-row two-col">
+                    <div class="form-group">
+                        <label class="form-label">Planned Date</label>
+                        <input type="date" class="form-control" [(ngModel)]="newTicket.plannedDate" name="plannedDate" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Build Date</label>
+                        <input type="date" class="form-control" [(ngModel)]="newTicket.scheduleBuildDate" name="scheduleBuildDate" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group full-width">
+                        <label class="form-label">Build Number</label>
+                        <input type="text"
+                               class="form-control"
+                               [(ngModel)]="newTicket.scheduleBuildNo"
+                               name="scheduleBuildNo"
+                               placeholder="Leave blank for Future Release" />
+                        <small class="form-hint">Leave blank to mark as Future Release</small>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" (click)="closeCreateTicketModal()">Cancel</button>
+                    <button type="submit" class="btn-save" [disabled]="!ticketForm.valid || savingTicket">
+                        <span *ngIf="!savingTicket">Create Ticket</span>
+                        <span *ngIf="savingTicket">
+                            <span class="spinner-small"></span> Creating...
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- ==================== AUDIT LOG MODAL ==================== -->
+<div class="modal-overlay" *ngIf="showAuditLogModal" (click)="closeAuditLogModal()">
+    <div class="audit-log-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title">
+                <span class="audit-icon">📋</span>
+                <span>Audit Log</span>
+                <span class="ticket-info" *ngIf="selectedTicketForAudit">
+                    #{{selectedTicketForAudit.ticketNo || selectedTicketForAudit.id}} - {{selectedTicketForAudit.title}}
+                </span>
+            </div>
+            <button class="modal-close-btn" (click)="closeAuditLogModal()">✕</button>
+        </div>
+
+        <div class="modal-body">
+            <!-- Loading State -->
+            <div *ngIf="loadingAuditLog" class="loading-state">
+                <div class="spinner"></div>
+                <span>Loading audit history...</span>
+            </div>
+
+            <!-- No Logs -->
+            <div *ngIf="!loadingAuditLog && auditLogs.length === 0" class="no-logs">
+                <span class="no-logs-icon">📭</span>
+                <p>No audit records found for this ticket.</p>
+            </div>
+
+            <!-- Audit Logs List -->
+            <div *ngIf="!loadingAuditLog && auditLogs.length > 0" class="audit-timeline">
+                <div class="audit-item" *ngFor="let log of auditLogs">
+                    <div class="audit-timeline-line">
+                        <span class="audit-badge" [class]="getActionBadgeClass(log.action)">
+                            {{getActionIcon(log.action)}}
+                        </span>
+                        <div class="audit-content">
+                            <div class="audit-header">
+                                <span class="audit-action">{{log.action | titlecase}}</span>
+                                <span class="audit-date">{{log.changedDate | date:'dd MMM yyyy, hh:mm a'}}</span>
+                            </div>
+                            <div class="audit-details">
+                                <span class="audit-user">
+                                    👤 {{log.changedBy || 'System'}}
+                                    <span class="audit-user-id" *ngIf="log.changedById">(ID: {{log.changedById}})</span>
+                                </span>
+                                <span class="audit-field" *ngIf="log.fieldName">
+                                    Field: <strong>{{log.fieldName}}</strong>
+                                </span>
+                            </div>
+                            <div class="audit-values" *ngIf="log.oldValue || log.newValue">
+                                <div class="audit-old-value" *ngIf="log.oldValue">
+                                    <span class="value-label">From:</span>
+                                    <span class="value-text old">{{formatAuditValue(log.oldValue)}}</span>
+                                </div>
+                                <div class="audit-new-value" *ngIf="log.newValue">
+                                    <span class="value-label">To:</span>
+                                    <span class="value-text new">{{formatAuditValue(log.newValue)}}</span>
+                                </div>
+                            </div>
+                            <div class="audit-remarks" *ngIf="log.remarks">
+                                <span class="remarks-label">📌</span>
+                                <span class="remarks-text">{{log.remarks}}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="close-btn" (click)="closeAuditLogModal()">Close</button>
+        </div>
+    </div>
+
+</div>
+<!-- ==================== RELEASE NOTES PREVIEW MODAL ==================== -->
+<!-- ==================== RELEASE NOTES PREVIEW MODAL ==================== -->
+<div class="rn-modal-overlay" *ngIf="showRNPreviewModal" (click)="closeRNPreviewModal()">
+    <div class="rn-modal" (click)="$event.stopPropagation()">
+
+        <!-- HEADER -->
+        <div class="rn-modal-header">
+            <div class="rn-modal-title">
+                <span class="rn-modal-icon">📄</span>
+                <span>Release Notes</span>
+                <span class="rn-modal-badge">
+                    {{ rnPreviewSection === 'current' ? 'Current Releases' : 'Future Releases' }}
+                </span>
+                <span class="rn-modal-badge rn-badge-count">{{ rnPreviewItems.length }} tickets</span>
+            </div>
+            <button class="rn-modal-close" (click)="closeRNPreviewModal()">✕</button>
+        </div>
+
+        <!-- BODY: two columns -->
+        <div class="rn-modal-body">
+            <!-- ── LEFT: Edit Panel ── -->
+            <div class="rn-edit-panel">
+                <p class="rn-panel-heading">Document Settings</p>
+
+                <!-- 1. Logo -->
+                <div class="rn-field">
+                    <label class="rn-label">Logo Image</label>
+                    <div class="rn-logo-box">
+                        <img *ngIf="rnLogoPreviewUrl" [src]="rnLogoPreviewUrl"
+                             class="rn-logo-thumb" alt="Logo preview" />
+                        <div *ngIf="!rnLogoPreviewUrl" class="rn-logo-empty">
+                            <span style="font-size:22px;">🖼️</span>
+                            <small>No logo uploaded<br />(uses default STEMZ logo)</small>
+                        </div>
+                        <div class="rn-logo-actions">
+                            <button class="rn-btn-blue" type="button" (click)="rnLogoInput.click()">
+                                📁 {{ rnLogoPreviewUrl ? 'Change' : 'Upload Logo' }}
+                            </button>
+                            <button *ngIf="rnLogoPreviewUrl" class="rn-btn-red" type="button"
+                                    (click)="rnCustomLogoBase64=null; rnLogoPreviewUrl=null">
+                                ✕ Remove
+                            </button>
+                        </div>
+                        <input #rnLogoInput type="file" accept="image/*" style="display:none"
+                               (change)="onRNLogoSelected($event)" />
+                    </div>
+                </div>
+
+                <!-- 2. Author -->
+                <div class="rn-field">
+                    <label class="rn-label">Author(s)</label>
+                    <input type="text" class="rn-input" [(ngModel)]="rnAuthorName"
+                           name="rnAuthorName" placeholder="e.g. Surabhi" />
+                </div>
+
+                <!-- 3. Approver -->
+                <div class="rn-field">
+                    <label class="rn-label">Approved By</label>
+                    <input type="text" class="rn-input" [(ngModel)]="rnApproverName"
+                           name="rnApproverName" placeholder="e.g. Hari" />
+                </div>
+
+                <!-- 4. Overview -->
+                <div class="rn-field">
+                    <label class="rn-label">Overview Text</label>
+                    <textarea class="rn-input rn-textarea" [(ngModel)]="rnOverviewText"
+                              name="rnOverviewText" rows="3"
+                              placeholder="Brief overview of this release..."></textarea>
+                </div>
+
+                <!-- 5. Special Instructions -->
+                <div class="rn-field">
+                    <label class="rn-label">Special Instructions</label>
+                    <textarea class="rn-input rn-textarea" [(ngModel)]="rnSpecialInstructions"
+                              name="rnSpecialInstructions" rows="2"
+                              placeholder="NA"></textarea>
+                </div>
+
+                <!-- 6. Config Impact -->
+                <div class="rn-field">
+                    <label class="rn-label">
+                        Configuration Impact
+                        <small style="font-weight:400;text-transform:none;">(one per line)</small>
+                    </label>
+                    <textarea class="rn-input rn-textarea" [(ngModel)]="rnConfigImpact"
+                              name="rnConfigImpact" rows="4"
+                              placeholder="One config item per line..."></textarea>
+                </div>
+
+                <!-- 7. Divider -->
+                <hr style="border:none;border-top:1px solid #e2e8f0;margin:4px 0;" />
+
+                <!-- 8. Per-ticket image upload -->
+                <div class="rn-field">
+                    <label class="rn-label">Upload Images per Ticket</label>
+                    <p style="font-size:8pt;color:#64748b;margin:0 0 8px;line-height:1.4;">
+                        Images appear in each ticket's detail section in the PDF.
+                    </p>
+
+                    <div *ngFor="let item of rnPreviewItems" class="rn-ticket-img-block">
+
+                        <!-- Hidden file input — ID-based, no template ref -->
+                        <input type="file"
+                               accept="image/*"
+                               multiple
+                               style="display:none"
+                               [id]="'rnImg_' + getTicketKey(item)"
+                               (change)="onRNTicketImageSelected($event, item)" />
+
+                        <!-- Ticket row -->
+                        <div class="rn-ticket-img-header">
+                            <span class="rn-ticket-img-name">
+                                <strong>{{item.departmentName || 'General'}}</strong> —
+                                {{(item.description || item.title || '').slice(0,36)}}{{(item.description || item.title || '').length > 36 ? '...' : ''}}
+                            </span>
+                            <button class="rn-btn-blue rn-btn-xs" type="button"
+                                    (click)="triggerRNTicketImageInput(getTicketKey(item)); $event.stopPropagation()">
+                                + Image
+                            </button>
+                        </div>
+
+                        <!-- Thumbnails -->
+                        <ng-container *ngIf="rnTicketImages[getTicketKey(item)]?.length">
+                            <div *ngFor="let img of rnTicketImages[getTicketKey(item)]; let idx = index"
+                                 class="rn-ticket-img-item">
+                                <img [src]="img.base64" class="rn-ticket-img-thumb" alt="screenshot" />
+                                <div class="rn-ticket-img-info">
+                                    <input type="text" class="rn-input rn-caption-input"
+                                           [(ngModel)]="img.caption"
+                                           [name]="'cap_' + getTicketKey(item) + '_' + idx"
+                                           placeholder="Caption (optional)" />
+                                    <button class="rn-btn-red rn-btn-xs" type="button"
+                                            (click)="removeRNTicketImage(getTicketKey(item), idx); $event.stopPropagation()">
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                        </ng-container>
+
+                        <div *ngIf="!rnTicketImages[getTicketKey(item)]?.length"
+                             class="rn-ticket-img-empty">
+                            No images added
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 9. Stats -->
+                <div class="rn-stats-row">
+                    <span class="rn-stat-chip">📦 {{rnPreviewItems.length}} total</span>
+                    <span class="rn-stat-chip rn-chip-blue">✨ {{rnFeatureCount()}} features</span>
+                    <span class="rn-stat-chip rn-chip-red">🐛 {{rnBugCount()}} fixes</span>
+                </div>
+
+            </div>
+            <!-- ── RIGHT: Live Preview ── -->
+            <div class="rn-preview-panel">
+                <p class="rn-panel-heading">Preview</p>
+                <div class="rn-preview-scroll">
+                    <div class="rn-preview-page">
+
+                        <!-- Cover -->
+                        <div style="display:flex;align-items:center;margin-bottom:4px;">
+                            <div style="width:80px;flex-shrink:0;">
+                                <img *ngIf="rnLogoPreviewUrl" [src]="rnLogoPreviewUrl"
+                                     style="height:32px;width:auto;" alt="logo" />
+                                <img *ngIf="!rnLogoPreviewUrl"
+                                     src="assets/images/StemzLogo.png"
+                                     style="height:32px;width:auto;"
+                                     onerror="this.style.display='none'" alt="logo" />
+                            </div>
+                            <div style="flex:1;text-align:center;font-weight:700;font-size:11pt;">
+                                {{selectedPlatform?.name || 'Glosys'}} Release Notes
+                            </div>
+                            <div style="width:80px;"></div>
+                        </div>
+                        <hr style="border:none;border-top:1.5px solid #000;margin:3px 0 10px;" />
+
+                        <p style="text-align:center;font-weight:600;font-size:9pt;margin:2px 0;">Release Notes</p>
+                        <p style="text-align:center;font-weight:600;font-size:9pt;margin:2px 0 10px;">
+                            Version {{rnPreviewItems[0]?.buildNo || 'Future Release'}}
+                        </p>
+
+                        <!-- Meta table -->
+                        <table class="prev-tbl" style="margin-bottom:8px;">
+                            <tr>
+                                <td class="prev-th" style="width:80px;">Date</td>
+                                <td class="prev-td">Today</td>
+                                <td class="prev-th" style="width:110px;">Modification Date:</td>
+                                <td class="prev-td">—</td>
+                            </tr>
+                            <tr>
+                                <td class="prev-th">Author(s):</td>
+                                <td class="prev-td">{{rnAuthorName || '—'}}</td>
+                                <td class="prev-th">Approved by:</td>
+                                <td class="prev-td">{{rnApproverName || '—'}}</td>
+                            </tr>
+                        </table>
+
+                        <p style="font-weight:700;font-size:8pt;margin:6px 0 2px;">Privacy Information</p>
+                        <p style="font-size:7.5pt;color:#333;margin-bottom:10px;line-height:1.4;">
+                            This document may contain information of a sensitive nature...
+                        </p>
+
+                        <!-- Summary table -->
+                        <table class="prev-tbl" style="margin-bottom:8px;">
+                            <tr><td class="prev-section" colspan="4">Overview</td></tr>
+                            <tr><td class="prev-td" colspan="4" style="font-size:7.5pt;">{{rnOverviewText}}</td></tr>
+                            <tr><td class="prev-section" colspan="4">New Features</td></tr>
+                            <tr>
+                                <td class="prev-th2" style="width:24px;">Sno</td>
+                                <td class="prev-th2" style="width:80px;">Department</td>
+                                <td class="prev-th2" colspan="2">Description</td>
+                            </tr>
+                            <ng-container *ngFor="let item of rnPreviewItems; let i = index">
+                                <tr *ngIf="item.typeName !== 'Issue'">
+                                    <td class="prev-td">{{i+1}}</td>
+                                    <td class="prev-td">{{item.departmentName || 'General'}}</td>
+                                    <td class="prev-td" colspan="2" style="font-size:7.5pt;">
+                                        {{item.description || item.title | slice:0:60}}{{(item.description || item.title)?.length > 60 ? '...' : ''}}
+                                    </td>
+                                </tr>
+                            </ng-container>
+                            <tr><td class="prev-section" colspan="4">Bugs / Fixes</td></tr>
+                            <tr>
+                                <td class="prev-th2" style="width:24px;">Sno</td>
+                                <td class="prev-th2" style="width:80px;">Department</td>
+                                <td class="prev-th2" style="width:60px;">Severity</td>
+                                <td class="prev-th2">Description</td>
+                            </tr>
+                            <ng-container *ngFor="let item of rnPreviewItems; let i = index">
+                                <tr *ngIf="item.typeName === 'Issue'">
+                                    <td class="prev-td">{{i+1}}</td>
+                                    <td class="prev-td">{{item.departmentName || 'General'}}</td>
+                                    <td class="prev-td">{{item.priorityName || 'Medium'}}</td>
+                                    <td class="prev-td" style="font-size:7.5pt;">
+                                        {{item.description || item.title | slice:0:50}}{{(item.description || item.title)?.length > 50 ? '...' : ''}}
+                                    </td>
+                                </tr>
+                            </ng-container>
+                        </table>
+
+                        <!-- Config impact preview -->
+                        <div *ngIf="rnConfigImpact" style="margin-top:6px;">
+                            <p style="font-weight:700;font-size:7.5pt;background:#d9d9d9;border:1px solid #999;padding:3px 5px;margin:0;">
+                                Configuration Impact:
+                            </p>
+                            <ul style="margin:3px 0 3px 16px;padding:0;font-size:7.5pt;">
+                                <li *ngFor="let line of rnConfigImpact.split('\n')" style="margin:1px 0;">{{line}}</li>
+                            </ul>
+                        </div>
+
+                        <!-- Detail sections indicator -->
+                        <div *ngIf="rnFeatureCount() + rnBugCount() > 0"
+                             style="margin-top:10px;padding:6px;background:#f0f4ff;border:1px dashed #93c5fd;border-radius:4px;font-size:7.5pt;color:#1d4ed8;text-align:center;">
+                            + {{rnFeatureCount() + rnBugCount()}} detailed section(s) with release notes will follow on subsequent pages
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="rn-modal-footer">
+            <button class="rn-btn-cancel" (click)="closeRNPreviewModal()">Cancel</button>
+            <button class="rn-btn-download" (click)="downloadRNFromPreview()">
+                ⬇ Download PDF
+            </button>
+        </div>
+
+    </div>
+</div>
+<div class="loading" *ngIf="loading">Loading portfolio...</div>

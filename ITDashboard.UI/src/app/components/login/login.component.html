@@ -1,0 +1,72 @@
+<!-- components/login/login.component.html -->
+<div class="login-container">
+    <div class="login-box">
+        <!-- Logo -->
+        <div class="login-header">
+            <img src="assets/images/StemzLogo.png" alt="Stemz Healthcare" class="logo-img">
+            <h2>keeping you healthy</h2>
+        </div>
+
+        <!-- Welcome Text -->
+        <div class="welcome-text">
+            <h3>Welcome!</h3>
+            <p>Please login to access your dashboard</p>
+        </div>
+
+        <!-- Login Form -->
+        <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
+            <div class="form-group">
+                <label for="username">Email ID <span class="required">*</span></label>
+                <input type="text"
+                       id="username"
+                       [(ngModel)]="username"
+                       name="username"
+                       placeholder="Enter your email"
+                       required
+                       class="form-control"
+                       [class.error]="error">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password <span class="required">*</span></label>
+                <input type="password"
+                       id="password"
+                       [(ngModel)]="password"
+                       name="password"
+                       placeholder="Enter your password"
+                       required
+                       class="form-control"
+                       [class.error]="error">
+            </div>
+
+            <!-- Forgot Password -->
+            <div class="forgot-password">
+                <a routerLink="/forgot-password">Forgot Password?</a>
+            </div>
+
+            <!-- Error Message -->
+            <div class="error-message" *ngIf="error">
+                <i class="ti ti-alert-circle"></i>
+                {{ error }}
+            </div>
+
+            <!-- Login Button -->
+            <button type="submit"
+                    class="btn-login"
+                    [disabled]="loading || !loginForm.valid">
+                <span *ngIf="!loading">LOGIN</span>
+                <span *ngIf="loading">Signing in...</span>
+            </button>
+        </form>
+
+        <!-- Reset Password link -->
+        <div class="reset-password">
+            <a routerLink="/forgot-password">Reset Password</a>
+        </div>
+
+        <!-- Footer -->
+        <div class="login-footer">
+            <p class="copyright">{{ currentYear }} Stemz Healthcare. All Rights Reserved.</p>
+        </div>
+    </div>
+</div>

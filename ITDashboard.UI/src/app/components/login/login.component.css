@@ -1,0 +1,230 @@
+/* components/login/login.component.css */
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #ffffff;
+    padding: 20px;
+}
+
+.login-box {
+    background: white;
+    border-radius: 8px;
+    padding: 40px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e8e8e8;
+}
+
+/* Header / Logo */
+.login-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+    .login-header .logo-img {
+        width: 80px;
+        height: auto;
+        object-fit: contain;
+        margin-bottom: 8px;
+    }
+
+    .login-header h2 {
+        margin: 0;
+        color: #8b2020;
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: 1px;
+    }
+
+/* Welcome Text */
+.welcome-text {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+    .welcome-text h3 {
+        margin: 0 0 4px 0;
+        color: #2a1a0a;
+        font-size: 22px;
+        font-weight: 700;
+    }
+
+    .welcome-text p {
+        margin: 0;
+        color: #6c757d;
+        font-size: 14px;
+    }
+
+/* Form Groups */
+.form-group {
+    margin-bottom: 16px;
+}
+
+    .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+        color: #2a1a0a;
+        font-size: 13px;
+    }
+
+    .form-group .required {
+        color: #dc3545;
+    }
+
+.form-control {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+    box-sizing: border-box;
+    background: #fafafa;
+}
+
+    .form-control:focus {
+        outline: none;
+        border-color: #8b2020;
+        box-shadow: 0 0 0 2px rgba(139, 32, 32, 0.1);
+        background: #ffffff;
+    }
+
+    .form-control.error {
+        border-color: #dc3545;
+    }
+
+/* Forgot Password */
+.forgot-password {
+    text-align: right;
+    margin: 8px 0 16px 0;
+}
+
+    .forgot-password a {
+        color: #6c757d;
+        font-size: 13px;
+        text-decoration: none;
+    }
+
+        .forgot-password a:hover {
+            color: #8b2020;
+            text-decoration: underline;
+        }
+
+/* Error Message */
+.error-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #fde8e8;
+    color: #b81c30;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+    .error-message i {
+        font-size: 18px;
+    }
+
+/* Login Button */
+.btn-login {
+    width: 100%;
+    padding: 12px;
+    background: #8b2020;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.3s;
+    letter-spacing: 1px;
+}
+
+    .btn-login:hover:not(:disabled) {
+        background: #6b1818;
+    }
+
+    .btn-login:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+/* Reset Password */
+.reset-password {
+    text-align: center;
+    margin: 12px 0 8px 0;
+}
+
+    .reset-password a {
+        color: #8b2020;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+        .reset-password a:hover {
+            text-decoration: underline;
+        }
+
+/* Vendor Login */
+.vendor-login {
+    text-align: center;
+    margin: 4px 0 20px 0;
+}
+
+    .vendor-login a {
+        color: #6c757d;
+        font-size: 13px;
+        text-decoration: none;
+    }
+
+        .vendor-login a:hover {
+            color: #8b2020;
+            text-decoration: underline;
+        }
+
+/* Footer */
+.login-footer {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e8e8e8;
+}
+
+    .login-footer .portal-text {
+        margin: 0 0 4px 0;
+        color: #6c757d;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .login-footer .copyright {
+        margin: 0;
+        color: #9c7850;
+        font-size: 12px;
+    }
+
+/* Responsive */
+@media (max-width: 480px) {
+    .login-box {
+        padding: 24px;
+    }
+
+    .login-header .logo-img {
+        width: 60px;
+    }
+
+    .login-header h2 {
+        font-size: 14px;
+    }
+
+    .welcome-text h3 {
+        font-size: 18px;
+    }
+}

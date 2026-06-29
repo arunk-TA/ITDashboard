@@ -1,0 +1,24 @@
+/* src/styles.css */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Outfit', sans-serif;
+  background: #f5f0e8;
+  color: #2a1a0a;
+  font-size: 14px;
+}
+
+a { text-decoration: none; color: inherit; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f5f0e8; }
+::-webkit-scrollbar-thumb { background: #d4c8a8; border-radius: 3px; }

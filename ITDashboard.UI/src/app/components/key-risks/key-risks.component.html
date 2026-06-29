@@ -1,0 +1,175 @@
+<div class="key-risks-container">
+    <div class="page-header">
+        <h2>Key Risks Dashboard</h2>
+        <button class="btn-add" (click)="openAddModal()">
+            <i class="ti ti-plus"></i> Add Risk
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+        <input type="text"
+               [(ngModel)]="searchTerm"
+               (input)="applyFilter()"
+               placeholder="Search risks..."
+               class="filter-search" />
+        <select [(ngModel)]="filterSeverity" (change)="applyFilter()" class="filter-select">
+            <option value="">All Severities</option>
+            <option *ngFor="let s of severities" [value]="s">{{s}}</option>
+        </select>
+        <select [(ngModel)]="filterStatus" (change)="applyFilter()" class="filter-select">
+            <option value="">All Statuses</option>
+            <option *ngFor="let s of statuses" [value]="s">{{s}}</option>
+        </select>
+        <button class="btn-reset" (click)="resetFilter()">Reset</button>
+    </div>
+
+    <!-- Loading -->
+    <div *ngIf="loading" class="loading">
+        Loading risks...
+    </div>
+
+    <!-- Risks Grid -->
+    <div class="risks-grid" *ngIf="!loading">
+        <div class="risk-card" *ngFor="let risk of filteredRisks">
+            <div class="risk-header">
+                <h3>{{risk.title}}</h3>
+                <div class="risk-badges">
+                    <span class="severity-badge" [class]="getSeverityClass(risk.severity)">
+                        {{risk.severity}}
+                    </span>
+                    <span class="status-badge" [class]="getStatusClass(risk.status)">
+                        {{risk.status}}
+                    </span>
+                </div>
+            </div>
+            <div class="risk-body">
+                <div class="risk-description" [innerHTML]="risk.description"></div>
+                <div class="risk-details">
+                    <div class="detail-item">
+                        <label>Assigned To:</label>
+                        <span>{{risk.assignedTo || 'Unassigned'}}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Due Date:</label>
+                        <span>{{risk.dueDate | date:'dd-MMM-yyyy'}}</span>
+                    </div>
+                    <div class="detail-item" *ngIf="risk.mitigationPlan">
+                        <label>Mitigation Plan:</label>
+                        <span>{{risk.mitigationPlan}}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="risk-actions">
+                <button class="btn-edit" (click)="openEditModal(risk)">
+                    <i class="ti ti-edit"></i> Edit
+                </button>
+                <button class="btn-delete" (click)="deleteRisk(risk.id)">
+                    <i class="ti ti-trash"></i> Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- No Results -->
+    <div *ngIf="!loading && filteredRisks.length === 0" class="no-results">
+        No risks found. Click "Add Risk" to create one.
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" [class.show]="showModal" (click)="closeModal()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+                <h3>{{isEditing ? 'Edit Risk' : 'Add New Risk'}}</h3>
+                <button class="close-btn" (click)="closeModal()">&times;</button>
+            </div>
+
+            <!-- Add New Risk Form -->
+            <div class="modal-body" *ngIf="!isEditing">
+                <div class="form-group">
+                    <label>Title *</label>
+                    <input type="text" [(ngModel)]="newRisk.title" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Description *</label>
+                    <app-rich-text-editor [(ngModel)]="newRisk.description"></app-rich-text-editor>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Severity</label>
+                        <select [(ngModel)]="newRisk.severity" class="form-control">
+                            <option *ngFor="let s of severities" [value]="s">{{s}}</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select [(ngModel)]="newRisk.status" class="form-control">
+                            <option *ngFor="let s of statuses" [value]="s">{{s}}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Assigned To</label>
+                        <input type="text" [(ngModel)]="newRisk.assignedTo" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Due Date</label>
+                        <input type="date" [(ngModel)]="newRisk.dueDate" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Mitigation Plan</label>
+                    <textarea [(ngModel)]="newRisk.mitigationPlan" class="form-control" rows="2"></textarea>
+                </div>
+            </div>
+
+            <!-- Edit Risk Form -->
+            <div class="modal-body" *ngIf="isEditing && selectedRisk">
+                <div class="form-group">
+                    <label>Title *</label>
+                    <input type="text" [(ngModel)]="selectedRisk.title" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Description *</label>
+                    <app-rich-text-editor [(ngModel)]="selectedRisk.description"></app-rich-text-editor>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Severity</label>
+                        <select [(ngModel)]="selectedRisk!.severity" class="form-control">
+                            <option *ngFor="let s of severities" [value]="s">{{s}}</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select [(ngModel)]="selectedRisk!.status" class="form-control">
+                            <option *ngFor="let s of statuses" [value]="s">{{s}}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Assigned To</label>
+                        <input type="text" [(ngModel)]="selectedRisk!.assignedTo" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Due Date</label>
+                        <input type="date" [(ngModel)]="selectedRisk!.dueDate" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Mitigation Plan</label>
+                    <textarea [(ngModel)]="selectedRisk!.mitigationPlan" class="form-control" rows="2"></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-cancel" (click)="closeModal()" [disabled]="saving">Cancel</button>
+                <button class="btn-save" (click)="saveRisk()" [disabled]="saving">
+                    {{saving ? 'Saving...' : 'Save'}}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
