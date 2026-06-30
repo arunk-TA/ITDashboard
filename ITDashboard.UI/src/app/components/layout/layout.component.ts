@@ -236,7 +236,7 @@ export class LayoutComponent implements OnInit {
     }
 
     loadKpi() {
-        this.svc.getKpi(this.selectedEntityId ?? undefined).subscribe(data => {
+        this.svc.getKpi(undefined).subscribe(data => {   
             this.kpi = data;
             this.cdr.detectChanges();
         });

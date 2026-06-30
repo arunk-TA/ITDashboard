@@ -1,12 +1,12 @@
 {
   "/api": {
-    "target": "http://20.0.2.215:8080",
+    "target": "http://20.0.2.215:5000",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"
   },
   "/moh": {
-    "target": "http://20.0.2.215:8080",
+    "target": "http://20.0.2.215:5000",
     "secure": false,
     "changeOrigin": true,
     "logLevel": "debug"
