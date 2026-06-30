@@ -64,7 +64,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAngular", policy =>
         policy.WithOrigins(
                 "http://localhost:4200",
-                "https://uatitdashboard.stemzglobal.com"  // ✅ add UAT,
+                "https://uatitdashboard.stemzglobal.com" , // ✅ add UAT,
                 "http://20.0.2.215:8080"
               )
               .AllowAnyHeader()
