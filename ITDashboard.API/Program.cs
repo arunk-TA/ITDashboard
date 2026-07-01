@@ -65,7 +65,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:4200",
                 "https://uatitdashboard.stemzglobal.com" , // ✅ add UAT,
-                "http://20.0.2.215:8080"
+                "https://itdashboard.stemzglobal.com"
               )
               .AllowAnyHeader()
               .AllowAnyMethod()

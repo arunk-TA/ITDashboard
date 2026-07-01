@@ -306,7 +306,10 @@ export class DashboardService {
     updateReleaseNote(ticketId: number, releaseNote: string): Observable<any> {
         return this.http.put(`${this.base}/release-note/${ticketId}`, { releaseNote });
     }
-
+    searchIncidents(searchTerm: string): Observable<TicketModel[]> {
+        const params = new HttpParams().set('searchTerm', searchTerm);
+        return this.http.get<TicketModel[]>(`${this.base}/tickets/search-incidents`, { params });
+    }
 
     private parseEntityIds(entityIdsStr: any): number[] {
         if (!entityIdsStr) return [];

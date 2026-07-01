@@ -47,6 +47,19 @@ public class DashboardController : ControllerBase
         return Ok(users);
     }
 
+    [HttpGet("tickets/search-incidents")]
+    public async Task<IActionResult> SearchIncidents(
+    [FromQuery] string searchTerm,
+    [FromQuery] int? entityId,
+    [FromQuery] int? platformId)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return Ok(Array.Empty<TicketModel>());
+
+        var results = await _repo.SearchInactiveIncidentsAsync(searchTerm);
+        return Ok(results);
+    }
+
     [HttpPut("tickets/{ticketId}/assigned-user")]
     public async Task<IActionResult> UpdateAssignedUser(int ticketId, [FromBody] UpdateAssignedUserRequest request)
     {

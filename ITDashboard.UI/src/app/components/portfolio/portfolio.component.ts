@@ -59,6 +59,9 @@ export class PortfolioComponent implements OnInit {
     allCategories: any[] = [];
     allDepartments: any[] = [];
 
+    private readonly closedStatusIds = [46, 153];
+
+
     _canEdit: boolean = false;
     _canDelete: boolean = false;
     _canAssignResource: boolean = false;
@@ -168,6 +171,14 @@ export class PortfolioComponent implements OnInit {
     pipelineSearchTerm = '';
     pipelineLoading = false;
     pipelineStages: { label: string; statuses: string[]; color: string }[] = [];
+    showUpdateIncidentModal = false;
+    incidentSearchTerm = '';
+    incidentSearchResults: any[] = [];
+    selectedIncident: any = null;
+    searchingIncidents = false;
+    activatingIncident = false;
+    private incidentSearchDebounce: any;
+
     get canEdit(): boolean { return this._canEdit; }
     get canDelete(): boolean { return this._canDelete; }
     get canAssignResource(): boolean { return this._canAssignResource; }
@@ -394,6 +405,91 @@ export class PortfolioComponent implements OnInit {
             input.click();
         }
     }
+
+    openUpdateIncidentModal(): void {
+        this.incidentSearchTerm = '';
+        this.incidentSearchResults = [];
+        this.selectedIncident = null;
+        this.showUpdateIncidentModal = true;
+        this.cdr.detectChanges();
+    }
+
+    closeUpdateIncidentModal(): void {
+        this.showUpdateIncidentModal = false;
+        this.incidentSearchTerm = '';
+        this.incidentSearchResults = [];
+        this.selectedIncident = null;
+        this.cdr.detectChanges();
+    }
+
+    onIncidentSearchInput(): void {
+        clearTimeout(this.incidentSearchDebounce);
+        this.selectedIncident = null;
+        const term = this.incidentSearchTerm.trim();
+        if (term.length < 2) {
+            this.incidentSearchResults = [];
+            this.cdr.detectChanges();
+            return;
+        }
+        this.incidentSearchDebounce = setTimeout(() => this.doSearchIncidents(term), 350);
+    }
+
+    private doSearchIncidents(term: string): void {
+        this.searchingIncidents = true;
+        this.svc.searchIncidents(term).subscribe({
+            next: (results) => {
+                this.incidentSearchResults = results || [];
+                this.searchingIncidents = false;
+                this.cdr.detectChanges();
+            },
+            error: (err) => {
+                console.error('Error searching incidents:', err);
+                this.incidentSearchResults = [];
+                this.searchingIncidents = false;
+                this.showToast('Failed to search incidents', 'error');
+                this.cdr.detectChanges();
+            }
+        });
+    }
+
+    selectIncident(ticket: any): void {
+        this.selectedIncident = ticket;
+        this.cdr.detectChanges();
+    }
+
+    confirmUpdateIncident(): void {
+        debugger;
+        if (!this.selectedIncident) return;
+        const ticket = this.selectedIncident;
+        this.openConfirmDialog(
+            `Are you sure you want to update Incident #${ticket.ticketNo || ticket.id} - "${ticket.title}"?`,
+            () => this.activateSelectedIncident()
+        );
+    }
+
+    private activateSelectedIncident(): void {
+        if (!this.selectedIncident) return;
+        const ticketId = this.selectedIncident.id;
+        this.activatingIncident = true;
+        this.cdr.detectChanges();
+
+        this.svc.activateTicket(ticketId).subscribe({
+            next: () => {
+                this.activatingIncident = false;
+                this.showUpdateIncidentModal = false;
+                this.showToast('Incident updated successfully', 'success');
+                this.refreshCurrentPlatformData();
+                this.cdr.detectChanges();
+            },
+            error: (err: any) => {
+                console.error('Error activating incident:', err);
+                this.activatingIncident = false;
+                this.showToast('Failed to update incident: ' + (err.error?.error || err.message), 'error');
+                this.cdr.detectChanges();
+            }
+        });
+    }
+
 
     openCreateTicketModal(buildNo?: string): void {
         this.newTicket = {
@@ -1287,23 +1383,46 @@ export class PortfolioComponent implements OnInit {
     // ==================== PLATFORM METHODS ====================
     getPlatformTicketCountForEntity(platformId: number, entityId: number | undefined): number {
         if (!entityId) return 0;
-        return this.allTickets.filter(t => t.entityId === entityId && t.platformId === platformId).length;
+        return this.allTickets.filter(t =>
+            t.entityId === entityId &&
+            t.platformId === platformId &&
+            !this.closedStatusIds.includes(t.statusId ?? 0)
+        ).length;
     }
 
     getPlatformTicketCount(platformId: number): number {
-        return this.allTickets.filter(t => t.entityId === this.selectedEntity?.entityId && t.platformId === platformId).length;
+        return this.allTickets.filter(t =>
+            t.entityId === this.selectedEntity?.entityId &&
+            t.platformId === platformId &&
+            !this.closedStatusIds.includes(t.statusId ?? 0)
+        ).length;
     }
 
     getPlatformOpenTickets(platformId: number): number {
-        return this.allTickets.filter(t => t.entityId === this.selectedEntity?.entityId && t.platformId === platformId && t.statusId !== undefined && this.openStatusIds.includes(t.statusId)).length;
+        return this.allTickets.filter(t =>
+            t.entityId === this.selectedEntity?.entityId &&
+            t.platformId === platformId &&
+            !this.closedStatusIds.includes(t.statusId ?? 0) &&
+            t.statusId !== undefined && this.openStatusIds.includes(t.statusId)
+        ).length;
     }
 
     getPlatformInProgressTickets(platformId: number): number {
-        return this.allTickets.filter(t => t.entityId === this.selectedEntity?.entityId && t.platformId === platformId && t.statusId !== undefined && this.inProgressStatusIds.includes(t.statusId)).length;
+        return this.allTickets.filter(t =>
+            t.entityId === this.selectedEntity?.entityId &&
+            t.platformId === platformId &&
+            !this.closedStatusIds.includes(t.statusId ?? 0) &&
+            t.statusId !== undefined && this.inProgressStatusIds.includes(t.statusId)
+        ).length;
     }
 
     getPlatformInProductionTickets(platformId: number): number {
-        return this.allTickets.filter(t => t.entityId === this.selectedEntity?.entityId && t.platformId === platformId && t.statusId !== undefined && this.inProductionStatusIds.includes(t.statusId)).length;
+        return this.allTickets.filter(t =>
+            t.entityId === this.selectedEntity?.entityId &&
+            t.platformId === platformId &&
+            !this.closedStatusIds.includes(t.statusId ?? 0) &&
+            t.statusId !== undefined && this.inProductionStatusIds.includes(t.statusId)
+        ).length;
     }
 
     applyPlatformFilter(platformName: string): void {
@@ -1670,7 +1789,7 @@ export class PortfolioComponent implements OnInit {
 
             const isInProduction = this.inProductionStatusIds.includes(statusId);
             const hasBuildNo = buildNo && buildNo !== null && buildNo !== '';
-            if ([46, 155].includes(statusId)) return;
+            if (this.closedStatusIds.includes(statusId)) return;
             const ticketEntry = {
                 id: item.id,
                 ticketId: item.id,
@@ -1764,7 +1883,7 @@ export class PortfolioComponent implements OnInit {
     groupBuildWiseData() {
         const buildMap = new Map<string, any>();
         const filteredTickets = this.allTickets.filter((t: TicketModel) => t.entityId === this.selectedEntity?.entityId && t.scheduleBuildNo &&
-            ![46, 155].includes(t.statusId ?? 0));
+            !this.closedStatusIds.includes(t.statusId ?? 0));
         this.currentBuildData = { items: [] };
         this.previousBuildsData = [];
 
@@ -2640,6 +2759,7 @@ export class PortfolioComponent implements OnInit {
             this.cdr.detectChanges();
         }
     }
+
      
     private resetToHomeState(): void {
         this.selectedPlatform = null;

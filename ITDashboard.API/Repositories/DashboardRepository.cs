@@ -13,6 +13,7 @@ namespace ITDashboard.API.Repositories;
 /// </summary>
 public interface IDashboardRepository
 {
+    Task<IEnumerable<TicketModel>> SearchInactiveIncidentsAsync(string searchTerm);
     Task LogAuditAsync(int ticketId, string action, string? fieldName, string? oldValue, string? newValue, string? changedBy, int? changedById = null);
     Task<IEnumerable<AuditLogModel>> GetTicketAuditLogAsync(int ticketId);
     Task<bool> UpdateTicketStatusAsync(int ticketId, int statusId, string? changedBy = null, int? changedById = null);
@@ -63,7 +64,45 @@ public class DashboardRepository : IDashboardRepository
             ?? throw new InvalidOperationException("Connection string not found.");
         Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
     }
+    public async Task<IEnumerable<TicketModel>> SearchInactiveIncidentsAsync(string searchTerm)
+    {
+        using var conn = CreateConnection();
+        const string sql = @"
+        SELECT 
+            t.id,
+            t.ticket_no          AS ""TicketNo"",
+            t.title,
+            t.description,
+            t.entity_id          AS ""EntityId"",
+            t.platform_id        AS ""PlatformId"",
+            t.department_id      AS ""DepartmentId"",
+            dept.field_name      AS ""DepartmentName"",
+            t.status_id          AS ""StatusId"",
+            sta.field_name       AS ""StatusName"",
+            t.type_id            AS ""TypeId"",
+            typ.field_name       AS ""TypeName"",
+            t.priority_id        AS ""PriorityId"",
+            pri.field_name       AS ""PriorityName"",
+            t.schedule_build_no  AS ""ScheduleBuildNo"",
+            t.schedule_build_date AS ""ScheduleBuildDate"",
+            t.planned_date       AS ""PlannedDate"",
+            t.is_active          AS ""IsActive""
+        FROM public.tickets_createtickets t
+        LEFT JOIN public.tickets_master_configuration sta  ON sta.id = t.status_id  AND sta.field_type  = 'Status'
+        LEFT JOIN public.tickets_master_configuration typ  ON typ.id = t.type_id    AND typ.field_type  = 'TicketType'
+        LEFT JOIN public.tickets_master_configuration pri  ON pri.id = t.priority_id AND pri.field_type = 'Priority'
+        LEFT JOIN public.tickets_master_configuration dept ON dept.id = t.department_id AND dept.field_type = 'Department'
+        WHERE t.is_active = FALSE
+          AND typ.field_name = 'Incident'
+          AND (
+                t.ticket_no::text ILIKE '%' || @SearchTerm || '%'
+                OR t.description ILIKE '%' || @SearchTerm || '%'
+              )
+        ORDER BY t.ticket_no DESC
+        LIMIT 25";
 
+        return await conn.QueryAsync<TicketModel>(sql, new { SearchTerm = searchTerm });
+    }
     private IDbConnection CreateConnection() => new NpgsqlConnection(_connectionString);
 
     // ─── AUDIT LOG ──────────────────────────────────────────────
