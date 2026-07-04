@@ -101,8 +101,23 @@ app.UseRouting();
 app.UseCors("AllowAngular");
 app.UseAuthentication();
 app.UseAuthorization();
+app.Use(async (context, next) =>
+{
+    var referer = context.Request.Headers["Referer"].ToString();
 
- 
+    if (context.Request.Method == "GET"
+        && context.Request.Headers["Accept"].ToString().Contains("text/html")
+        && !context.Request.Path.StartsWithSegments("/MOH")
+        && referer.Contains("/MOH/proxy"))
+    {
+        var targetPath = context.Request.Path.Value ?? "/";
+        context.Response.Redirect($"/MOH/proxy?path={Uri.EscapeDataString(targetPath)}");
+        return;
+    }
+
+    await next();
+});
+
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 

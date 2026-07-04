@@ -1,9 +1,17 @@
-﻿/* generic-risks.component.css */
+﻿/* generic-risks.component.css - Fixed side by side layout */
+
+* {
+    box-sizing: border-box;
+}
+
 .key-risks-container {
     padding: 20px;
     background: white;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    overflow: visible;
+    width: 100%;
+    position: relative;
 }
 
 .page-header {
@@ -11,6 +19,8 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
     .page-header h2 {
@@ -30,6 +40,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    white-space: nowrap;
 }
 
     .btn-add:hover {
@@ -87,37 +98,136 @@
         background: #e0e0e0;
     }
 
+/* ===== RISKS GRID - FIXED FOR SIDE BY SIDE ===== */
 .risks-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 20px;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: flex-start; /* Align cards to the left */
 }
 
+/* ===== RISK CARD ===== */
 .risk-card {
+    position: relative;
+    background: white;
     border: 1px solid #e8dfc8;
     border-radius: 8px;
-    padding: 16px;
-    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
     transition: box-shadow 0.2s;
+    padding: 16px;
+    padding-top: 44px;
+    display: inline-flex; /* Changed from flex to inline-flex */
+    flex-direction: column;
+    width: 350px;
+    min-width: 280px;
+    max-width: 450px;
+    min-height: 200px;
+    height: auto;
+    max-height: 700px;
+    resize: both;
+    overflow: auto;
+    flex-shrink: 0;
+    flex-grow: 0;
+    z-index: 1;
+    vertical-align: top; /* Align to top */
 }
+
+    .risk-card:active,
+    .risk-card:focus-within {
+        z-index: 10;
+    }
 
     .risk-card:hover {
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        z-index: 2;
     }
+
+    /* Custom resize handle */
+    .risk-card::-webkit-resizer {
+        background: transparent;
+    }
+
+    .risk-card::after {
+        content: '↘';
+        position: absolute;
+        bottom: 2px;
+        right: 4px;
+        font-size: 14px;
+        color: #999;
+        opacity: 0.3;
+        pointer-events: none;
+        font-weight: bold;
+        z-index: 20;
+    }
+
+    .risk-card:hover::after {
+        opacity: 0.8;
+    }
+
+/* Drag handle */
+.drag-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 34px;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    color: #b0bcca;
+    font-size: 13px;
+    border-radius: 8px 8px 0 0;
+    background: #f8f9fa;
+    user-select: none;
+    z-index: 5;
+    border-bottom: 1px solid #e8dfc8;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+    .drag-handle:hover {
+        background: #e9ecef;
+    }
+
+    .drag-handle:active {
+        cursor: grabbing;
+    }
+
+    .drag-handle i {
+        font-size: 16px;
+        color: #adb5bd;
+    }
+
+.drag-text {
+    font-size: 11px;
+    color: #999;
+}
+
+/* ===== CARD CONTENT ===== */
+.risk-card-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 100px;
+    overflow: visible;
+    box-sizing: border-box;
+    height: auto;
+}
 
 .risk-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
 }
-
-    .risk-header h3 {
-        margin: 0;
-        font-size: 16px;
-        flex: 1;
-        margin-right: 12px;
-    }
 
 .risk-badges {
     display: flex;
@@ -128,9 +238,10 @@
 .severity-badge, .status-badge {
     padding: 3px 10px;
     border-radius: 12px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .severity-critical {
@@ -173,55 +284,215 @@
     color: white;
 }
 
+/* ===== RISK BODY ===== */
 .risk-body {
-    margin: 12px 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 60px;
+    height: auto;
+    overflow: visible;
 }
 
+/* ======================================== */
+/* ===== RISK DESCRIPTION - FORCE WRAP ===== */
+/* ======================================== */
+
 .risk-description {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     color: #555;
     font-size: 14px;
     line-height: 1.5;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    flex-shrink: 0;
+    display: block !important;
 }
 
+    /* Force ALL content to wrap */
+    .risk-description * {
+        max-width: 100% !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+        text-overflow: clip !important;
+        min-width: 0 !important;
+    }
+
+    /* ===== TABLE SPECIFIC FIXES ===== */
+    .risk-description table {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 8px 0 !important;
+        font-size: 13px !important;
+        border: 1px solid #ddd !important;
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        white-space: normal !important;
+        table-layout: auto !important;
+        word-wrap: break-word !important;
+        word-break: break-word !important;
+    }
+
+        .risk-description table thead {
+            display: table-header-group !important;
+            width: 100% !important;
+            table-layout: auto !important;
+        }
+
+        .risk-description table tbody {
+            display: table-row-group !important;
+            width: 100% !important;
+            table-layout: auto !important;
+        }
+
+        .risk-description table tr {
+            display: table-row !important;
+            width: 100% !important;
+            table-layout: auto !important;
+        }
+
+        .risk-description table th,
+        .risk-description table td {
+            display: table-cell !important;
+            padding: 6px 8px !important;
+            border: 1px solid #ddd !important;
+            text-align: left !important;
+            vertical-align: top !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            word-break: break-word !important;
+            white-space: normal !important;
+            max-width: 120px !important;
+            min-width: 30px !important;
+            width: auto !important;
+            table-layout: auto !important;
+        }
+
+            /* Allow first column more space */
+            .risk-description table td:first-child,
+            .risk-description table th:first-child {
+                min-width: 50px !important;
+                max-width: 150px !important;
+            }
+
+    /* ===== PARAGRAPHS ===== */
+    .risk-description p {
+        margin: 0 0 8px 0 !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+
+    /* ===== LISTS ===== */
+    .risk-description ul,
+    .risk-description ol {
+        padding-left: 20px !important;
+        margin: 0 0 8px 0 !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+
+    .risk-description li {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+        max-width: 100% !important;
+        display: list-item !important;
+    }
+
+    /* ===== IMAGES & MEDIA ===== */
+    .risk-description img {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+
+    .risk-description iframe,
+    .risk-description video {
+        max-width: 100% !important;
+    }
+
+    /* ===== HEADINGS ===== */
+    .risk-description h1,
+    .risk-description h2,
+    .risk-description h3,
+    .risk-description h4,
+    .risk-description h5,
+    .risk-description h6 {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        word-break: break-word !important;
+        white-space: normal !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+
+/* ======================================== */
+/* ===== END OF RISK DESCRIPTION FIX ===== */
+/* ======================================== */
+
+/* ===== RISK DETAILS ===== */
 .risk-details {
     border-top: 1px solid #f0f0f0;
-    padding-top: 12px;
+    padding-top: 10px;
+    width: 100%;
+    flex-shrink: 0;
 }
 
 .detail-item {
     display: flex;
-    font-size: 13px;
-    padding: 3px 0;
+    flex-wrap: wrap;
+    font-size: 12px;
+    padding: 2px 0;
+    gap: 4px;
+    width: 100%;
 }
 
     .detail-item label {
         font-weight: 600;
-        min-width: 120px;
+        min-width: 90px;
         color: #666;
+        flex-shrink: 0;
     }
 
     .detail-item span {
         color: #333;
+        word-break: break-word;
+        flex: 1;
     }
 
+/* ===== RISK ACTIONS ===== */
 .risk-actions {
     display: flex;
     gap: 8px;
-    margin-top: 12px;
-    padding-top: 12px;
+    margin-top: 10px;
+    padding-top: 10px;
     border-top: 1px solid #e8dfc8;
+    width: 100%;
+    flex-wrap: wrap;
+    flex-shrink: 0;
 }
 
 .btn-edit, .btn-delete {
-    padding: 5px 12px;
+    padding: 4px 12px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 4px;
+    white-space: nowrap;
 }
 
 .btn-edit {
@@ -242,10 +513,33 @@
         background: #c82333;
     }
 
+/* ===== DRAGGING STATES ===== */
+.risk-card.dragging {
+    opacity: 0.4;
+    transform: scale(0.95);
+    box-shadow: 0 0 0 2px #1a5cff;
+    z-index: 100;
+}
+
+.risk-card.drag-over {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 2px #1a5cff, 0 8px 25px rgba(26, 92, 255, 0.15);
+    background: #f8faff;
+    border-color: #1a5cff;
+    z-index: 99;
+}
+
+    .risk-card.dragging *,
+    .risk-card.drag-over * {
+        user-select: none;
+    }
+
+/* ===== LOADING & NO RESULTS ===== */
 .loading {
     text-align: center;
     padding: 40px;
     color: #999;
+    width: 100%;
 }
 
 .no-results {
@@ -253,9 +547,10 @@
     padding: 40px;
     color: #999;
     font-size: 16px;
+    width: 100%;
 }
 
-/* Modal */
+/* ===== MODAL ===== */
 .modal {
     display: none;
     position: fixed;
@@ -329,6 +624,7 @@
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 14px;
+    box-sizing: border-box;
 }
 
 .form-row {
@@ -376,25 +672,88 @@
         cursor: not-allowed;
     }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .filters-bar {
-        flex-direction: column;
-    }
-
-    .filter-search, .filter-select {
-        width: 100%;
-    }
-
-    .risks-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .form-row {
-        grid-template-columns: 1fr;
-    }
+/* ===== CONFIRM DIALOG ===== */
+.confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.2s ease;
 }
-/* Toast Notifications */
+
+.confirm-dialog {
+    background: white;
+    border-radius: 12px;
+    padding: 30px 35px;
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+    position: relative;
+}
+
+.confirm-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.confirm-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.confirm-message {
+    font-size: 15px;
+    color: #666;
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.confirm-btn-cancel,
+.confirm-btn-ok {
+    padding: 10px 30px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.confirm-btn-cancel {
+    background: #f0f0f0;
+    color: #333;
+}
+
+    .confirm-btn-cancel:hover {
+        background: #e0e0e0;
+    }
+
+.confirm-btn-ok {
+    background: #dc3545;
+    color: white;
+}
+
+    .confirm-btn-ok:hover {
+        background: #c82333;
+    }
+
+/* ===== TOAST NOTIFICATIONS ===== */
 .toast-container {
     position: fixed;
     top: 20px;
@@ -487,96 +846,7 @@
         color: #333;
     }
 
-@media (max-width: 480px) {
-    .toast-container {
-        max-width: 90%;
-        right: 5%;
-        top: 10px;
-    }
-}
-/* generic-risks.component.css - Updated confirm dialog styles */
-
-/* Confirm Dialog */
-.confirm-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 99999; /* ✅ Higher z-index to appear above everything */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    animation: fadeIn 0.2s ease;
-}
-
-.confirm-dialog {
-    background: white;
-    border-radius: 12px;
-    padding: 30px 35px;
-    max-width: 420px;
-    width: 90%;
-    text-align: center;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    animation: slideUp 0.3s ease;
-    position: relative;
-}
-
-.confirm-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-}
-
-.confirm-title {
-    font-size: 20px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 8px;
-}
-
-.confirm-message {
-    font-size: 15px;
-    color: #666;
-    margin-bottom: 24px;
-    line-height: 1.6;
-}
-
-.confirm-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-}
-
-.confirm-btn-cancel,
-.confirm-btn-ok {
-    padding: 10px 30px;
-    border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.confirm-btn-cancel {
-    background: #f0f0f0;
-    color: #333;
-}
-
-    .confirm-btn-cancel:hover {
-        background: #e0e0e0;
-    }
-
-.confirm-btn-ok {
-    background: #dc3545;
-    color: white;
-}
-
-    .confirm-btn-ok:hover {
-        background: #c82333;
-    }
-
+/* ===== KEYFRAMES ===== */
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -596,5 +866,89 @@
     to {
         transform: translateY(0);
         opacity: 1;
+    }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    .filters-bar {
+        flex-direction: column;
+    }
+
+    .filter-search, .filter-select {
+        width: 100%;
+    }
+
+    .risks-grid {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .risk-card {
+        width: 100% !important;
+        min-width: 0;
+        max-width: 100% !important;
+        flex-shrink: 1;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .drag-handle .drag-text {
+        display: none;
+    }
+
+    .drag-handle {
+        justify-content: center;
+        padding: 4px 8px;
+    }
+
+    .risk-description table th,
+    .risk-description table td {
+        max-width: 80px !important;
+        min-width: 20px !important;
+        padding: 4px 6px !important;
+        font-size: 12px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .toast-container {
+        max-width: 90%;
+        right: 5%;
+        top: 10px;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .btn-add {
+        justify-content: center;
+    }
+
+    .risk-card {
+        padding: 12px;
+        padding-top: 40px;
+        min-height: 180px;
+    }
+
+    .risk-details .detail-item {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .detail-item label {
+        min-width: auto;
+    }
+
+    .risk-description table th,
+    .risk-description table td {
+        max-width: 60px !important;
+        min-width: 15px !important;
+        padding: 3px 4px !important;
+        font-size: 11px !important;
     }
 }

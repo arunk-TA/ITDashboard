@@ -198,6 +198,7 @@ export interface TicketFilterRequest {
 // Platform related interfaces (defined only once)
 export interface PlatformModel {
     id: number;
+    allIds?: number[]; 
     fieldType: string;
     fieldName: string;
     fieldValues: string;
@@ -209,6 +210,7 @@ export interface PlatformModel {
 export interface PlatformInfo {
     id: number;
     name: string;
+    allIds?: number[];
 }
 export interface ReleaseNote {
     id?: number;
@@ -231,6 +233,7 @@ export interface KeyRiskModel {
     createdDate: string;
     updatedDate: string;
     mitigationPlan?: string;
+    displayOrder?: number;
 }
 
 // Also add these request models if needed

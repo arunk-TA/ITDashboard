@@ -6,13 +6,9 @@ using System.Data;
 
 namespace ITDashboard.API.Repositories;
 
-/// <summary>
-/// All database access goes through stored procedures.
-/// Swap out Npgsql for OracleConnection / SqlConnection
-/// and change CommandType.StoredProcedure syntax to switch DB.
-/// </summary>
 public interface IDashboardRepository
 {
+    Task<bool> ReorderKeyRisksAsync(List<int> ids, string updatedBy);
     Task<IEnumerable<TicketModel>> SearchInactiveIncidentsAsync(string searchTerm);
     Task LogAuditAsync(int ticketId, string action, string? fieldName, string? oldValue, string? newValue, string? changedBy, int? changedById = null);
     Task<IEnumerable<AuditLogModel>> GetTicketAuditLogAsync(int ticketId);
@@ -30,10 +26,8 @@ public interface IDashboardRepository
     Task<IEnumerable<KeyRiskModel>> GetKeyRisksAsync(int? entityId = null, string? category = null);
     Task<int> CreateKeyRiskAsync(CreateKeyRiskRequest request, string? createdBy = null);
     Task<bool> UpdateKeyRiskAsync(int id, UpdateKeyRiskRequest request, string? updatedBy = null);
-
     Task<IEnumerable<MasterConfigModel>> StatusList(int entityId);
     Task<IEnumerable<PlatformModel>> GetPlatformsAsync(int? entityId = null);
-
     Task<IEnumerable<TicketModel>> GetDepartmentSummaryAsync(int? entityId);
     Task<string?> GetReleaseNoteAsync(int ticketId);
     Task<bool> UpdateReleaseNoteAsync(int ticketId, string releaseNote);
@@ -64,6 +58,10 @@ public class DashboardRepository : IDashboardRepository
             ?? throw new InvalidOperationException("Connection string not found.");
         Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
     }
+
+    private NpgsqlConnection CreateConnection() => new NpgsqlConnection(_connectionString);
+
+    // ─── SEARCH INACTIVE INCIDENTS ─────────────────────────────
     public async Task<IEnumerable<TicketModel>> SearchInactiveIncidentsAsync(string searchTerm)
     {
         using var conn = CreateConnection();
@@ -103,7 +101,44 @@ public class DashboardRepository : IDashboardRepository
 
         return await conn.QueryAsync<TicketModel>(sql, new { SearchTerm = searchTerm });
     }
-    private IDbConnection CreateConnection() => new NpgsqlConnection(_connectionString);
+
+    // ─── REORDER KEY RISKS ──────────────────────────────────────
+    public async Task<bool> ReorderKeyRisksAsync(List<int> ids, string updatedBy)
+    {
+        using var conn = CreateConnection();
+        await conn.OpenAsync(); // ✅ Open connection for transaction
+
+        using var transaction = conn.BeginTransaction();
+
+        try
+        {
+            for (int i = 0; i < ids.Count; i++)
+            {
+                const string sql = @"
+                UPDATE public.key_risks 
+                SET display_order = @Order,
+                    updated_date = CURRENT_TIMESTAMP,
+                    updated_by = @UpdatedBy
+                WHERE id = @Id";
+
+                await conn.ExecuteAsync(sql, new
+                {
+                    Order = i + 1,
+                    Id = ids[i],
+                    UpdatedBy = updatedBy ?? "System"
+                }, transaction);
+            }
+
+            transaction.Commit();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            Console.WriteLine($"Error reordering: {ex.Message}");
+            return false;
+        }
+    }
 
     // ─── AUDIT LOG ──────────────────────────────────────────────
     public async Task LogAuditAsync(int ticketId, string action, string? fieldName,
@@ -138,7 +173,6 @@ public class DashboardRepository : IDashboardRepository
             new { TicketId = ticketId });
     }
 
-    // ─── CREATE TICKET ──────────────────────────────────────────
     // ─── CREATE TICKET ──────────────────────────────────────────
     public async Task<int> CreateTicketAsync(CreateTicketRequest request, string? createdBy = null, int? createdById = null)
     {
@@ -187,12 +221,12 @@ public class DashboardRepository : IDashboardRepository
             throw;
         }
     }
+
     // ─── UPDATE PLANNED DATE ────────────────────────────────────
     public async Task<bool> UpdatePlannedDateAsync(int ticketId, DateTime? plannedDate, string? changedBy = null, int? changedById = null)
     {
         using var conn = CreateConnection();
 
-        // Get old value for audit
         var oldVal = await conn.QueryFirstOrDefaultAsync<DateTime?>(
             "SELECT planned_date FROM public.tickets_createtickets WHERE id = @TicketId",
             new { TicketId = ticketId });
@@ -218,7 +252,6 @@ public class DashboardRepository : IDashboardRepository
     {
         using var conn = CreateConnection();
 
-        // Get old value for audit
         var oldVal = await conn.QueryFirstOrDefaultAsync<DateTime?>(
             "SELECT schedule_build_date FROM public.tickets_createtickets WHERE id = @TicketId",
             new { TicketId = ticketId });
@@ -244,12 +277,10 @@ public class DashboardRepository : IDashboardRepository
     {
         using var conn = CreateConnection();
 
-        // Get old value for audit
         var oldVal = await conn.QueryFirstOrDefaultAsync<string>(
             "SELECT assigned_users FROM public.tickets_createtickets WHERE id = @TicketId",
             new { TicketId = ticketId });
 
-        // Get user name for new value
         var newUserName = await conn.QueryFirstOrDefaultAsync<string>(
             "SELECT realname FROM public.users WHERE id = @UserId",
             new { UserId = userId });
@@ -372,7 +403,7 @@ public class DashboardRepository : IDashboardRepository
     {
         using var conn = CreateConnection();
         var sql = @"
-            SELECT id, name, realname, email
+            SELECT id, name, realname,firstname, email
             FROM public.users
             WHERE is_active = true
             ORDER BY name";
@@ -499,7 +530,6 @@ public class DashboardRepository : IDashboardRepository
         parameters.Add("p_status_id", filter.StatusId, DbType.Int32);
         parameters.Add("p_type_id", filter.TypeId, DbType.Int32);
         parameters.Add("p_priority_id", filter.PriorityId, DbType.Int32);
-        // ✅ Explicitly pass as Date not DateTime
         parameters.Add("p_from_date", filter.FromDate.HasValue
             ? DateOnly.FromDateTime(filter.FromDate.Value)
             : (DateOnly?)null, DbType.Date);
@@ -512,6 +542,7 @@ public class DashboardRepository : IDashboardRepository
             parameters
         );
     }
+
     // ─── DASHBOARD KPI ─────────────────────────────────────────
     public async Task<DashboardKpiModel?> GetDashboardKpiAsync(int? entityId)
     {
@@ -528,7 +559,6 @@ public class DashboardRepository : IDashboardRepository
         using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync();
 
-        // ✅ Use DynamicParameters with explicit DbType instead of inline ::integer cast
         var parameters = new DynamicParameters();
         parameters.Add("p_user_id", userId, DbType.Int32);
 
@@ -549,6 +579,7 @@ public class DashboardRepository : IDashboardRepository
 
         return summaryList;
     }
+
     public async Task<IEnumerable<PortfolioSummaryModel>> GetPortfolioCategoriesAsync()
     {
         using var conn = CreateConnection();
@@ -707,7 +738,10 @@ public class DashboardRepository : IDashboardRepository
             FROM public.key_risks
             WHERE is_active = TRUE
             AND (@EntityId IS NULL OR entity_id = @EntityId)
-            AND (@Category IS NULL OR category = @Category)";
+            AND (@Category IS NULL OR category = @Category)
+            ORDER BY 
+                CASE WHEN display_order IS NULL THEN 1 ELSE 0 END,
+                display_order ASC, id ASC";
 
         return await conn.QueryAsync<KeyRiskModel>(sql, new
         {
@@ -716,6 +750,7 @@ public class DashboardRepository : IDashboardRepository
         });
     }
 
+    // ✅ ADD THIS METHOD - was missing!
     public async Task<KeyRiskModel?> GetKeyRiskByIdAsync(int id)
     {
         using var conn = CreateConnection();

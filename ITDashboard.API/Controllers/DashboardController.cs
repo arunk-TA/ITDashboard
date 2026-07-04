@@ -1164,6 +1164,26 @@ public class DashboardController : ControllerBase
     private string GetCurrentUser() =>
     User.FindFirst(ClaimTypes.Name)?.Value ?? "System";
 
+    [HttpPost("key-risks/reorder")]
+    public async Task<IActionResult> ReorderKeyRisks([FromBody] ReorderRequest request)
+    {
+        try
+        {
+            if (request.Ids == null || request.Ids.Count == 0)
+                return BadRequest(new { error = "No IDs provided" });
+
+            var success = await _repo.ReorderKeyRisksAsync(request.Ids, GetCurrentUser());
+            if (!success)
+                return StatusCode(500, new { error = "Failed to reorder items" });
+
+            return Ok(new { message = "Order updated successfully" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
     private int? GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier);
@@ -1204,5 +1224,9 @@ public class DashboardController : ControllerBase
     public class DeactivateTicketRequest
     {
         public string Reason { get; set; } = string.Empty;
+    }
+    public class ReorderRequest
+    {
+        public List<int> Ids { get; set; } = new List<int>();
     }
 }

@@ -122,7 +122,15 @@ public class AuthRepository : IAuthRepository
             permissions.CanManageUsers = false;
             return permissions;
         }
-
+        if (roleIds.Contains(145))
+        {
+            permissions.CanEdit = true;
+            permissions.CanDelete = true;
+            permissions.CanAssignResource = true;
+            permissions.CanCreate = true;
+            permissions.CanManageUsers = true;
+            return permissions;
+        }
         return permissions;
     }
 

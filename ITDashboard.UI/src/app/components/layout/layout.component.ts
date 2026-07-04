@@ -249,9 +249,10 @@ export class LayoutComponent implements OnInit {
 
         this.selectedEntityPlatforms = platformsForEntity.map(p => ({
             id: p.id,
+            allIds: p.allIds,
             name: p.fieldName,
             ticketCount: this.allTickets.filter(t =>
-                t.entityId === entityId && t.platformId === p.id
+                t.entityId === entityId && (p.allIds ?? [p.id]).includes(t.platformId ?? -1)
             ).length
         }));
 

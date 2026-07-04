@@ -1,6 +1,6 @@
 <div class="key-risks-container">
     <div class="page-header">
-        <h2>CEO Attention Dashboard</h2>
+        <h2>CEO Attention Dashboard TEST</h2>
         <button class="btn-add" (click)="openAddModal()">
             <i class="ti ti-plus"></i> Add Item
         </button>
@@ -14,17 +14,36 @@
             <option *ngFor="let s of severities" [value]="s">{{s}}</option>
         </select>
         <select [(ngModel)]="filterStatus" (change)="applyFilter()" class="filter-select">
-            <option value="">All Statuses</option>
+            <option value="">All Status</option>
             <option *ngFor="let s of statuses" [value]="s">{{s}}</option>
         </select>
         <button class="btn-reset" (click)="resetFilter()">Reset</button>
     </div>
 
     <!-- Risks Grid -->
-    <div class="risks-grid">
-        <div class="risk-card" *ngFor="let risk of filteredRisks">
+    <div class="risks-grid" id="risksGrid">
+
+        <div class="risk-card"
+             *ngFor="let risk of filteredRisks; let i = index"
+             draggable="true"
+             (dragstart)="onDragStart($event, i)"
+             (dragover)="onDragOver($event)"
+             (drop)="onDrop($event, i)"
+             (dragend)="onDragEnd($event)"
+             (dragleave)="onDragLeave($event)"
+             [class.dragging]="draggedIndex === i"
+             [class.drag-over]="dragOverIndex === i"
+             attr.data-index="{{i}}">
+
+            <!-- Drag Handle with visual indicator -->
+            <div class="drag-handle">
+                <i class="ti ti-grip-vertical"></i>
+                <span class="drag-text">Drag to reorder</span>
+            </div>
+
+            <!-- Rest of your card content -->
             <div class="risk-header">
-                <h3>{{risk.title}}</h3>
+                <h3>iniii{{risk.title}}</h3>
                 <div class="risk-badges">
                     <span class="severity-badge" [class]="getSeverityClass(risk.severity)">{{risk.severity}}</span>
                     <span class="status-badge" [class]="getStatusClass(risk.status)">{{risk.status}}</span>
@@ -55,43 +74,41 @@
                 <h3>{{isEditing ? 'Edit Item' : 'Add New Item'}}</h3>
                 <button class="close-btn" (click)="closeModal()">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="form-group">
+                <label>Title *</label>
+                <input type="text" class="form-control" [(ngModel)]="currentRisk.title">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-control" rows="3" [(ngModel)]="currentRisk.description"></textarea>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
-                    <label>Title *</label>
-                    <input type="text" class="form-control" [(ngModel)]="isEditing ? selectedRisk!.title : newRisk.title">
-                </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea class="form-control" rows="3" [(ngModel)]="isEditing ? selectedRisk!.description : newRisk.description"></textarea>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Severity</label>
-                        <select class="form-control" [(ngModel)]="isEditing ? selectedRisk!.severity : newRisk.severity">
-                            <option *ngFor="let s of severities" [value]="s">{{s}}</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select class="form-control" [(ngModel)]="isEditing ? selectedRisk!.status : newRisk.status">
-                            <option *ngFor="let s of statuses" [value]="s">{{s}}</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Assigned To</label>
-                        <input type="text" class="form-control" [(ngModel)]="isEditing ? selectedRisk!.assignedTo : newRisk.assignedTo">
-                    </div>
-                    <div class="form-group">
-                        <label>Due Date</label>
-                        <input type="date" class="form-control" [(ngModel)]="isEditing ? selectedRisk!.dueDate : newRisk.dueDate">
-                    </div>
+                    <label>Severity</label>
+                    <select class="form-control" [(ngModel)]="currentRisk.severity">
+                        <option *ngFor="let s of severities" [value]="s">{{s}}</option>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label>Mitigation Plan</label>
-                    <textarea class="form-control" rows="2" [(ngModel)]="isEditing ? selectedRisk!.mitigationPlan : newRisk.mitigationPlan"></textarea>
+                    <label>Status</label>
+                    <select class="form-control" [(ngModel)]="currentRisk.status">
+                        <option *ngFor="let s of statuses" [value]="s">{{s}}</option>
+                    </select>
                 </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Assigned To</label>
+                    <input type="text" class="form-control" [(ngModel)]="currentRisk.assignedTo">
+                </div>
+                <div class="form-group">
+                    <label>Due Date</label>
+                    <input type="date" class="form-control" [(ngModel)]="currentRisk.dueDate">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Mitigation Plan</label>
+                <textarea class="form-control" rows="2" [(ngModel)]="currentRisk.mitigationPlan"></textarea>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn-cancel" (click)="closeModal()">Cancel</button>

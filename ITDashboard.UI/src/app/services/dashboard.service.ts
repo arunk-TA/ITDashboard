@@ -4,7 +4,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { KeyRiskModel } from '../models/dashboard.models';
-import { Observable, Subject, BehaviorSubject } from 'rxjs';
+import { Observable, Subject, BehaviorSubject, forkJoin } from 'rxjs';
 import {
     AlertModel, CategoryModel, CrPipelineModel,
     DashboardKpiModel, DepartmentSummaryRow, EntityModel,
@@ -20,6 +20,7 @@ export class DashboardService {
 
     private base = environment.apiUrl + '/api/dashboard';
     private apiBase = environment.apiUrl + '/api/dashboard';
+    private mohBase = environment.apiUrl + '/api/MOH/dashboard';
     // Subject to communicate entity selection between components
 
     private selectedEntitySubject = new BehaviorSubject<PortfolioSummaryModel | null>(null);
@@ -151,12 +152,6 @@ export class DashboardService {
         const user = userStr ? JSON.parse(userStr) : null;
         // ✅ Try all possible ID field names
         const userId = user?.id ?? user?.userId ?? user?.user_id ?? user?.Id ?? null;
-
-        console.log('🔍 Resolved userId for summary:', userId);
-
-
-        console.log('🔍 localStorage user:', user); // ← add this to see the full object
-        console.log('🔍 HI Uset:', user);
         const params = user?.id ? `?userId=${user.id}` : '';
         return this.http.get<any[]>(`${this.apiBase}/portfolio/summary${params}`);
     }
@@ -252,20 +247,52 @@ export class DashboardService {
     }
     // ── Platforms ────────────────────────────────────────────────
     getPlatforms(entityId?: number): Observable<PlatformModel[]> {
-        let params = new HttpParams();
-        if (entityId != null) params = params.set('entityId', entityId);
-        params = params.set('fieldType', 'Platforms');
-        return this.http.get<MasterConfigModel[]>(`${this.base}/master-config`, { params }).pipe(
-            map(platforms => platforms.map(p => ({
-                id: p.id,
-                fieldType: p.fieldType,
-                fieldName: p.fieldName,
-                fieldValues: p.fieldValues,
-                entityIds: this.parseEntityIds(p.entityIds),
-                isMandatory: p.isMandatory,
-                isActive: p.isActive
-            })))
+        let params1 = new HttpParams().set('fieldType', 'Platform');
+        let params2 = new HttpParams().set('fieldType', 'Platforms');
+        if (entityId != null) {
+            params1 = params1.set('entityId', entityId);
+            params2 = params2.set('entityId', entityId);
+        }
+        return forkJoin({
+            legacy: this.http.get<MasterConfigModel[]>(`${this.base}/master-config`, { params: params1 }),
+            current: this.http.get<MasterConfigModel[]>(`${this.base}/master-config`, { params: params2 })
+        }).pipe(
+            map(({ legacy, current }) => {
+                const all = [...legacy, ...current];
+                const byName = new Map<string, any>();
+                all.forEach(p => {
+                    const key = (p.fieldName || '').trim().toLowerCase();
+                    if (!byName.has(key)) {
+                        byName.set(key, {
+                            ids: [p.id],
+                            fieldName: p.fieldName,
+                            fieldType: p.fieldType,
+                            fieldValues: p.fieldValues,
+                            isMandatory: p.isMandatory,
+                            isActive: p.isActive,
+                            entityIds: new Set(this.parseEntityIds(p.entityIds))
+                        });
+                    } else {
+                        const existing = byName.get(key);
+                        existing.ids.push(p.id);
+                        this.parseEntityIds(p.entityIds).forEach((e: number) => existing.entityIds.add(e));
+                    }
+                });
+                return Array.from(byName.values()).map(v => ({
+                    id: v.ids[0],
+                    allIds: v.ids,
+                    fieldType: v.fieldType,
+                    fieldName: v.fieldName,
+                    fieldValues: v.fieldValues,
+                    entityIds: Array.from(v.entityIds),
+                    isMandatory: v.isMandatory,
+                    isActive: v.isActive
+                } as PlatformModel));
+            })
         );
+    }
+    reorderKeyRisks(ids: number[]): Observable<any> {
+        return this.http.post(`${this.base}/key-risks/reorder`, { ids });
     }
     // Key Risks CRUD operations
     getKeyRisks(entityId?: number, category?: string): Observable<KeyRiskModel[]> {
@@ -322,5 +349,39 @@ export class DashboardService {
             return [];
         }
     }
+     
+    // ── MOH Timesheet Dashboard ────────────────────────────────────
+    getMohProfile(): Observable<any> {
+        return this.http.get<any>(`${this.mohBase}/profile`);
+    }
 
+    getMohCounts(userId: number): Observable<any> {
+        const params = new HttpParams().set('userId', userId);
+        return this.http.get<any>(`${this.mohBase}/counts`, { params });
+    }
+
+    getMohApprovals(userId: number): Observable<any> {
+        const params = new HttpParams().set('userId', userId);
+        return this.http.get<any>(`${this.mohBase}/approvals`, { params });
+    }
+
+    getMohApprovalStatusOverview(userId: number, view: string = 'monthly'): Observable<any> {
+        const params = new HttpParams().set('userId', userId).set('view', view);
+        return this.http.get<any>(`${this.mohBase}/approval-status-overview`, { params });
+    }
+
+    getMohPlatformWiseUsers(approverUserId: number): Observable<any> {
+        const params = new HttpParams().set('approverUserId', approverUserId);
+        return this.http.get<any>(`${this.mohBase}/platform-wise-users`, { params });
+    }
+
+    getMohTimeDistribution(userId: number, view: string = 'monthly'): Observable<any> {
+        const params = new HttpParams().set('userId', userId).set('view', view);
+        return this.http.get<any>(`${this.mohBase}/time-distribution`, { params });
+    }
+
+    getMohTopPlatforms(userId: number, view: string = 'monthly'): Observable<any> {
+        const params = new HttpParams().set('userId', userId).set('view', view);
+        return this.http.get<any>(`${this.mohBase}/top-platforms`, { params });
+    }
 }

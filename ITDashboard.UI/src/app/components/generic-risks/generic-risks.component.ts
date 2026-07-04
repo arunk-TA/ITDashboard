@@ -1,6 +1,6 @@
 ﻿// generic-risks.component.ts
 
-import { Component, Input, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, AfterViewInit, ChangeDetectorRef, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DashboardService } from '../../services/dashboard.service';
@@ -36,6 +36,12 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
     // ============================================
     // TOAST NOTIFICATIONS
     // ============================================
+    private resizeObserver: ResizeObserver | null = null;
+    private readonly SIZE_STORAGE_PREFIX = 'risk-card-size-';
+    private readonly CARD_TRACK_WIDTH = 350;
+    private readonly GRID_GAP = 20;
+
+
     toasts: { id: number; message: string; type: 'success' | 'error' | 'info'; visible: boolean }[] = [];
     private toastCounter = 0;
 
@@ -49,7 +55,8 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
     @Input() addButtonText: string = 'Add Risk';
     @Input() category: 'key_risks' | 'ceo_attention' = 'key_risks';
     @Input() entityId: number = 1;
-
+    draggedIndex: number | null = null;
+    dragOverIndex: number | null = null;
     // ============================================
     // PERMISSIONS PROPERTIES
     // ============================================
@@ -88,22 +95,97 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
     constructor(
         private dashboardService: DashboardService,
         private authService: AuthService,
-        private cdr: ChangeDetectorRef
+        private cdr: ChangeDetectorRef,
+        private elementRef: ElementRef
     ) { }
 
     ngOnInit(): void {
         this.setupPermissions();
         this.loadRisks();
     }
+    ngAfterViewInit(): void {
+        this.setupResizeObserver();
+    }
 
     ngOnDestroy(): void {
         this.subscriptions.unsubscribe();
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+        }
     }
 
-    // ============================================
-    // TOAST METHODS
-    // ============================================
+    private setupResizeObserver(): void {
+        this.resizeObserver = new ResizeObserver((entries) => {
+            const containerWidth = this.elementRef.nativeElement.querySelector('.risks-grid')?.clientWidth || window.innerWidth;
+            for (const entry of entries) {
+                const card = entry.target as HTMLElement;
+                const riskId = card.getAttribute('data-risk-id');
+                if (!riskId) continue;
+                const { width, height } = entry.contentRect;
+                if (width > 0 && height > 0) {
+                    const safeWidth = Math.min(width, containerWidth);
+                    if (width > containerWidth) {
+                        card.style.width = safeWidth + 'px'; // force it back in bounds live
+                    }
+                    localStorage.setItem(this.SIZE_STORAGE_PREFIX + riskId, JSON.stringify({ width: safeWidth, height }));
+                }
+            }
+        });
 
+        this.observeAllCards();
+    }
+
+    private observeAllCards(): void {
+        if (!this.resizeObserver) return;
+        const cards: HTMLElement[] = Array.from(
+            this.elementRef.nativeElement.querySelectorAll('.risk-card')
+        );
+
+        const containerWidth = this.elementRef.nativeElement
+            .querySelector('.risks-grid')?.clientWidth || window.innerWidth;
+
+        const sizesToApply = cards.map(card => {
+            const riskId = card.getAttribute('data-risk-id');
+            if (!riskId) return null;
+            const saved = localStorage.getItem(this.SIZE_STORAGE_PREFIX + riskId);
+            if (!saved) return null;
+            try {
+                const parsed = JSON.parse(saved);
+                return { card, ...parsed };
+            } catch {
+                return null;
+            }
+        }).filter(Boolean) as { card: HTMLElement; width: number; height: number }[];
+
+        requestAnimationFrame(() => {
+            sizesToApply.forEach(({ card, width, height }) => {
+                const safeWidth = Math.min(width, containerWidth);
+                card.style.width = safeWidth + 'px';
+                card.style.height = height + 'px';
+            });
+            cards.forEach(card => this.resizeObserver!.observe(card));
+        });
+    }
+     
+    private restoreCardSize(card: HTMLElement): void {
+        const riskId = card.getAttribute('data-risk-id');
+        if (!riskId) return;
+
+        const saved = localStorage.getItem(this.SIZE_STORAGE_PREFIX + riskId);
+        if (saved) {
+            try {
+                const { width, height } = JSON.parse(saved);
+                card.style.width = width + 'px';
+                card.style.height = height + 'px';
+            } catch (e) {
+                console.warn('Failed to restore card size:', e);
+            }
+        }
+    }
+
+   
+
+     
     showToast(message: string, type: 'success' | 'error' | 'info' = 'success', duration: number = 3000): void {
         const id = ++this.toastCounter;
         this.toasts.push({ id, message, type, visible: true });
@@ -149,7 +231,119 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
             }, 300);
         }
     }
+    onDragStart(event: DragEvent, index: number): void {
+        this.draggedIndex = index;
+        const risk = this.filteredRisks[index];
 
+        // Store the data
+        event.dataTransfer?.setData('text/plain', JSON.stringify({
+            index: index,
+            id: risk.id
+        }));
+        event.dataTransfer!.effectAllowed = 'move';
+
+        // Add dragging class for visual feedback
+        const card = (event.target as HTMLElement).closest('.risk-card');
+        if (card) {
+            setTimeout(() => {
+                card.classList.add('dragging');
+            }, 0);
+        }
+    }
+
+    onDragOver(event: DragEvent): void {
+        event.preventDefault();
+        event.dataTransfer!.dropEffect = 'move';
+
+        // Get the drop target index
+        const target = (event.target as HTMLElement).closest('.risk-card');
+        if (target) {
+            const index = parseInt(target.getAttribute('data-index') || '');
+            if (!isNaN(index) && index !== this.dragOverIndex) {
+                this.dragOverIndex = index;
+                this.cdr.detectChanges();
+            }
+        }
+    }
+
+    onDrop(event: DragEvent, dropIndex: number): void {
+        event.preventDefault();
+
+        const rawData = event.dataTransfer?.getData('text');
+        if (!rawData) {
+            this.resetDragState();
+            return;
+        }
+
+        try {
+            const draggedData = JSON.parse(rawData);
+            const draggedId = draggedData.id;
+
+            // Find the dragged risk in the main array
+            const draggedRisk = this.risks.find(r => r.id === draggedId);
+            const targetRisk = this.filteredRisks[dropIndex];
+
+            if (!draggedRisk || !targetRisk) {
+                this.resetDragState();
+                return;
+            }
+
+            // Get indices in the main risks array
+            const draggedIndex = this.risks.indexOf(draggedRisk);
+            const targetIndex = this.risks.indexOf(targetRisk);
+
+            if (draggedIndex === -1 || targetIndex === -1) {
+                this.resetDragState();
+                return;
+            }
+
+            // Swap the items in the array
+            [this.risks[draggedIndex], this.risks[targetIndex]] =
+                [this.risks[targetIndex], this.risks[draggedIndex]];
+
+            // Reapply filter
+            this.applyFilter();
+
+            // ✅ Save the new order to database - FIX: use dashboardService
+            const orderedIds = this.filteredRisks.map(r => r.id!);
+            this.dashboardService.reorderKeyRisks(orderedIds).subscribe({
+                next: () => {
+                    this.showToast('Panel reordered successfully', 'success');
+                },
+                error: (err: any) => {  // ✅ Add explicit 'any' type
+                    console.error('Failed to save order:', err);
+                    // Rollback the order change
+                    this.loadRisks();
+                    this.showToast('Failed to save order. Please try again.', 'error');
+                }
+            });
+
+        } catch (error) {
+            console.error('Error during drag and drop:', error);
+        }
+
+        this.resetDragState();
+    }
+    onDragEnd(event: DragEvent): void {
+        this.resetDragState();
+    }
+
+    onDragLeave(event: DragEvent): void {
+        const target = (event.target as HTMLElement).closest('.risk-card');
+        if (target) {
+            target.classList.remove('drag-over');
+        }
+        this.dragOverIndex = null;
+    }
+
+    private resetDragState(): void {
+        this.draggedIndex = null;
+        this.dragOverIndex = null;
+        document.querySelectorAll('.risk-card').forEach(card => {
+            card.classList.remove('dragging', 'drag-over');
+        });
+        this.cdr.detectChanges();
+    }
     // ============================================
     // PERMISSIONS
     // ============================================
@@ -245,21 +439,16 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
         this.loading = true;
         this.cdr.detectChanges();
 
-        console.log('🔄 Loading risks with entityId:', this.entityId, 'category:', this.category);
-
         this.dashboardService.getKeyRisks(this.entityId, this.category).subscribe({
             next: (data: any) => {
-                console.log('✅ API returned risks:', data);
-                console.log('✅ Number of risks:', data?.length || 0);
-
                 this.risks = data || [];
                 this.applyFilter();
                 this.loading = false;
                 this.cdr.detectChanges();
 
-                // ✅ Force UI update after a short delay
+                // Cards now exist in the DOM — attach observers and restore sizes
                 setTimeout(() => {
-                    this.cdr.detectChanges();
+                    this.observeAllCards();
                 }, 100);
             },
             error: (err: any) => {

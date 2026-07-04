@@ -73,23 +73,33 @@ public class MOHService
 
             var tokenJson = JsonDocument.Parse(responseText);
 
-            if (tokenJson.RootElement.TryGetProperty("access", out var accessToken))
+            // Try multiple possible token field names
+            string? token = null;
+            string[] tokenFields = { "access", "access_token", "token", "jwt", "id_token" };
+
+            foreach (var field in tokenFields)
             {
-                var token = accessToken.GetString();
-                if (!string.IsNullOrEmpty(token))
+                if (tokenJson.RootElement.TryGetProperty(field, out var tokenElement))
                 {
-                    lock (_lock)
-                    {
-                        _cachedToken = token;
-                        _tokenExpiry = DateTime.UtcNow.AddMinutes(25);
-                        CachedLoginResponse = responseText; // ✅ Cache full login response for user data
-                    }
-                    _logger.LogInformation("✅ MOH token obtained successfully");
-                    return _cachedToken; // ✅ single return, after CachedLoginResponse is set
+                    token = tokenElement.GetString();
+                    if (!string.IsNullOrEmpty(token))
+                        break;
                 }
             }
 
-            _logger.LogError($"No 'access' field in MOH login response: {responseText}");
+            if (!string.IsNullOrEmpty(token))
+            {
+                lock (_lock)
+                {
+                    _cachedToken = token;
+                    _tokenExpiry = DateTime.UtcNow.AddMinutes(25);
+                    CachedLoginResponse = responseText;
+                }
+                _logger.LogInformation("✅ MOH token obtained successfully");
+                return _cachedToken;
+            }
+
+            _logger.LogError($"No token field found in MOH login response: {responseText}");
             return null;
         }
         catch (Exception ex)
@@ -98,6 +108,8 @@ public class MOHService
             return null;
         }
     }
+
+
     public async Task<HttpResponseMessage> ProxyRequestAsync(string path, HttpMethod method, string? body = null)
     {
         var client = _httpClientFactory.CreateClient();
@@ -111,27 +123,31 @@ public class MOHService
         client.DefaultRequestHeaders.Add("Client-ID", ClientId);
         client.DefaultRequestHeaders.Add("Client-Secret-Key", ClientSecret);
 
-        // IMPORTANT: Get token and add Authorization header
+        // Get token and add Authorization header
         var token = await GetTokenAsync();
         if (!string.IsNullOrEmpty(token))
         {
-            if (token != "client_credentials_ok")
-            {
-                client.DefaultRequestHeaders.Authorization =
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-                _logger.LogInformation("✅ Added Authorization header with token");
-            }
-            else
-            {
-                _logger.LogInformation("✅ Using client credentials (no token needed)");
-            }
+            // Clean the token - remove any extra quotes or whitespace
+            token = token.Trim().Trim('"');
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            _logger.LogInformation("✅ Added Authorization header with token");
         }
         else
         {
             _logger.LogWarning("⚠️ No token available for request");
         }
 
+        // Build the target URL with proper query string handling
         var targetUrl = $"{BaseUrl}{path}";
+
+        // Ensure timestamp parameter is added if needed
+        if (!targetUrl.Contains("tm=") && !targetUrl.Contains("nocache="))
+        {
+            var separator = targetUrl.Contains("?") ? "&" : "?";
+            targetUrl += $"{separator}tm={DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")}";
+        }
+
         _logger.LogInformation($"🔄 Proxying to: {targetUrl}");
 
         try
@@ -158,11 +174,27 @@ public class MOHService
 
             _logger.LogInformation($"📡 Response status: {response.StatusCode}");
 
-            // If we get a 401, log it clearly
+            // If we get a 401, try to refresh the token
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
                 _logger.LogError($"🔴 Authentication failed (401): {errorContent}");
+
+                // Clear cached token and retry once
+                lock (_lock)
+                {
+                    _cachedToken = null;
+                    _tokenExpiry = DateTime.MinValue;
+                }
+
+                // Try once more with fresh token
+                token = await GetTokenAsync();
+                if (!string.IsNullOrEmpty(token))
+                {
+                    client.DefaultRequestHeaders.Authorization =
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                    response = await client.GetAsync(targetUrl);
+                }
             }
 
             return response;

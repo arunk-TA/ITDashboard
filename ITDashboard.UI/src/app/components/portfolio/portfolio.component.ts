@@ -201,9 +201,11 @@ export class PortfolioComponent implements OnInit {
                 const isCEO = roles.includes('CEO');
                 const isSupervisor = roles.includes('Supervisor');
                 const isAdmin = roles.includes('Admin');
-
+                const isSuperAdmin = roles.includes('SuperAdmin');
+                const isTechnician = roles.includes('Technician'); 
                 // Check if user has management role (Supervisor or Admin)
-                const hasManagementRole = isSupervisor || isAdmin;
+                const hasManagementRole = isSupervisor || isAdmin || isSuperAdmin || isTechnician;
+                 
 
                 // CEO should have VIEW ONLY on Portfolio page
                 // Supervisors and Admins have FULL ACCESS
@@ -223,19 +225,7 @@ export class PortfolioComponent implements OnInit {
                     this._isViewer = true;
                 }
 
-                console.log('🔍 Portfolio Permissions:', {
-                    user: user.email,
-                    roles: roles,
-                    isCEO: isCEO,
-                    isSupervisor: isSupervisor,
-                    isAdmin: isAdmin,
-                    hasManagementRole: hasManagementRole,
-                    canEdit: this._canEdit,
-                    canDelete: this._canDelete,
-                    canAssignResource: this._canAssignResource,
-                    canCreate: this._canCreate,
-                    isViewer: this._isViewer
-                });
+               
             } else {
                 this._canEdit = false;
                 this._canDelete = false;
@@ -307,7 +297,7 @@ export class PortfolioComponent implements OnInit {
                             overdue: 0,
                             platforms: platforms
                                 .filter(p => p.entityIds.includes(item.entityId ?? 0))
-                                .map(p => ({ id: p.id, name: p.fieldName }))
+                                .map(p => ({ id: p.id, name: p.fieldName, allIds: p.allIds }))
                         });
                     }
                     const entity = entityMap.get(item.entityId)!;
@@ -335,12 +325,18 @@ export class PortfolioComponent implements OnInit {
                 orderMap.set(38, 5);  // Internal Projects
                 orderMap.set(39, 6);  // Non-Functional
                 orderMap.set(40, 7);  // MIS
-                orderMap.set(41, 8);  // Stemz Global
-                orderMap.set(42, 9);  // Cancer Care
-                orderMap.set(43, 10); // Stemz Bridge
+                //orderMap.set(41, 8);  // Stemz Global
+                orderMap.set(42, 8);  // Cancer Care
+                orderMap.set(43, 9); // Stemz Bridge
 
                 const enriched = Array.from(entityMap.values())
-                    .sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999));
+                    .sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999))
+                    .filter(entity => entity.displayOrder !== 0 && entity.displayOrder !== 999);
+                    console.log('📊 Entities before filter:', enriched.map(e => ({
+    name: e.entityName,
+    displayOrder: e.displayOrder,
+    totalTickets: e.totalTickets
+})));
 
                 this.allEntities = enriched;
                 this.filteredEntities = [...enriched];
@@ -393,6 +389,7 @@ export class PortfolioComponent implements OnInit {
         this.svc.getActiveUsers().subscribe({
             next: (users) => {
                 this.allUsers = users;
+                
                 this.cdr.detectChanges();
             },
             error: (err) => console.error('Error loading users:', err)
@@ -459,6 +456,7 @@ export class PortfolioComponent implements OnInit {
 
     confirmUpdateIncident(): void {
         debugger;
+        console.log('1️⃣ confirmUpdateIncident called', this.selectedIncident);
         if (!this.selectedIncident) return;
         const ticket = this.selectedIncident;
         this.openConfirmDialog(
@@ -1004,7 +1002,7 @@ export class PortfolioComponent implements OnInit {
     this.svc.getTickets(filter).subscribe({
         next: (tickets) => {
             const platformTickets = tickets.filter(
-                t => t.platformId === this.selectedPlatform?.id
+                t => this.selectedPlatform?.allIds?.includes(t.platformId)
             );
 
             this.allTickets = tickets;
@@ -1040,9 +1038,33 @@ export class PortfolioComponent implements OnInit {
         this.cdr.detectChanges();
     }
 
+    //getUserDisplayName(userId: number): string {
+    //    const user = this.allUsers.find(u => u.id === userId);
+    //    return user?.firstname;
+    //}
+    // In portfolio.component.ts
     getUserDisplayName(userId: number): string {
         const user = this.allUsers.find(u => u.id === userId);
-        return user?.realname || user?.name || '—';
+        if (!user) return '—';
+
+        // Try firstname first
+        if (user.firstname) {
+            return user.firstname;
+        }
+
+        // If firstname exists as a property with different name
+        if (user.first_name) {
+            return user.first_name;
+        }
+
+        // If no firstname, extract from realname
+        if (user.realname) {
+            const parts = user.realname.trim().split(' ');
+            return parts[0]; // Return first word
+        }
+
+        // Fallback to name
+        return user.name || '—';
     }
     // ==================== PIPELINE STAGES - DYNAMIC BUILDER ====================
     buildPipelineStages(statuses: any[]): void {
@@ -1084,7 +1106,6 @@ export class PortfolioComponent implements OnInit {
                 .map(s => s.fieldName)
         })).filter(stage => stage.statuses.length > 0);
 
-        console.log('Dynamic Pipeline Stages built:', this.pipelineStages);
     }
 
     // ==================== STATUS EDITING METHODS ====================
@@ -1439,7 +1460,10 @@ export class PortfolioComponent implements OnInit {
             this.platformFutureReleasesData = { items: [] };
             this.pipelineTickets = [];
             this.filteredPipelineTickets = [];
-            const platformTickets = this.allTickets.filter(ticket => ticket.entityId === this.selectedEntity?.entityId && ticket.platformId === platform.id);
+            const platformTickets = this.allTickets.filter(ticket =>
+                ticket.entityId === this.selectedEntity?.entityId &&
+                platform.allIds?.includes(ticket.platformId ?? -1)
+            );
             this.groupPlatformDataByDepartment(platformTickets);
             this.groupPlatformBuildWiseData(platformTickets);
             this.setDefaultExpandedSection();
@@ -1474,7 +1498,7 @@ export class PortfolioComponent implements OnInit {
         this.resetPlatformState();
        // const platformTickets = this.allTickets.filter(t => t.entityId === resolvedEntity.entityId && t.platformId === resolvedPlatform.id);
         const platformTickets = this.allTickets.filter(
-            t => t.entityId === resolvedEntity.entityId && t.platformId === resolvedPlatform.id
+            t => t.entityId === resolvedEntity.entityId && resolvedPlatform.allIds?.includes(t.platformId)
         );
         debugger;
         const target = this.allTickets.find((t: any) => t.id === 2026045226);
@@ -1927,7 +1951,8 @@ export class PortfolioComponent implements OnInit {
         const filter = { entityId: this.selectedEntity.entityId, typeName: 'CR' };
         this.svc.getTickets(filter).subscribe({
             next: (tickets) => {
-                const platformTickets = tickets.filter(t => t.platformId === this.selectedPlatform?.id);
+                const platformTickets = tickets.filter(t => this.selectedPlatform?.allIds?.includes(t.platformId));
+                //                                                                                              ^ added this closing paren
                 this.pipelineTickets = platformTickets;
                 this.filteredPipelineTickets = [...platformTickets];
                 this.pipelineLoading = false;
@@ -1969,7 +1994,11 @@ export class PortfolioComponent implements OnInit {
 
     onViewChange() {
         if (this.selectedPlatform) {
-            const platformTickets = this.allTickets.filter(t => t.entityId === this.selectedEntity?.entityId && t.platformId === this.selectedPlatform.id);
+            //const platformTickets = this.allTickets.filter(t => t.entityId === this.selectedEntity?.entityId && t.platformId === this.selectedPlatform.id);
+            const platformTickets = this.allTickets.filter(t =>
+                t.entityId === this.selectedEntity?.entityId &&
+                this.selectedPlatform.allIds?.includes(t.platformId)
+            );
             if (this.selectedView === 'build') {
                 this.groupPlatformBuildWiseData(platformTickets);
                 this.setDefaultExpandedSection();
@@ -2785,6 +2814,18 @@ export class PortfolioComponent implements OnInit {
         this.savingStatus = {};
         this.router.navigate([], { relativeTo: this.route, queryParams: {}, queryParamsHandling: '' });
         this.cdr.detectChanges();
+    }
+    stripHtml(html: string): string {
+        if (!html) return '';
+        const withoutTags = html.replace(/<[^>]*>/g, '');
+        const withoutEntities = withoutTags
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'");
+        return withoutEntities.replace(/\s+/g, ' ').trim();
     }
 }
  

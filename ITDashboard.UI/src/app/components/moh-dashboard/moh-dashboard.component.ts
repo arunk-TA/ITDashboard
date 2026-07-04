@@ -1,37 +1,18 @@
-﻿import { Component, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+﻿import { Component } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { environment } from '../../../environments/environment'; // ✅ Add this import
+import { environment } from '../../../environments/environment'; // ✅ adjust path to match your project
 
 @Component({
     selector: 'app-moh-dashboard',
     standalone: true,
-    imports: [CommonModule],
-    template: `
-    <div style="height: calc(100vh - 60px); padding: 0; position: relative;">
-      <div *ngIf="loading" style="display:flex; justify-content:center; 
-                                  align-items:center; height:100%;">
-        <div>Loading MOH Dashboard...</div>
-      </div>
-      <iframe
-        *ngIf="!loading"
-        [src]="iframeUrl"
-        style="width:100%; height:100%; border:none;"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        title="MOH Dashboard">
-      </iframe>
-    </div>
-  `
+    template: `<iframe [src]="proxyUrl" style="width:100%; height:100vh; border:0;"></iframe>`
 })
-export class MohDashboardComponent implements OnInit {
-    private sanitizer = inject(DomSanitizer);
-    iframeUrl!: SafeResourceUrl;
-    loading = true;
+export class MohDashboardComponent {
+    proxyUrl: SafeResourceUrl;
 
-    ngOnInit() {
-        // Point directly to .NET backend port, bypassing Angular router
-        const proxyUrl = `/api/moh/proxy?path=/approvalDashboard`;
-        this.iframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(proxyUrl);
-        this.loading = false;
+    constructor(sanitizer: DomSanitizer) {
+        //const url = `${environment.apiUrl}/MOH/proxy?path=/approvalDashboard`;
+        const url = `${environment.apiUrl}/api/MOH/proxy?path=/approvalDashboard`;
+        this.proxyUrl = sanitizer.bypassSecurityTrustResourceUrl(url);
     }
 }

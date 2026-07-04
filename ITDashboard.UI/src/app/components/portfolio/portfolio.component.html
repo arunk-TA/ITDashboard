@@ -152,7 +152,7 @@
                                         <div *ngIf="editingUser[getUserKey(release)]" class="user-editor-inline">
                                             <select [(ngModel)]="selectedUser[getUserKey(release)]" class="user-select">
                                                 <option value="0">— Select —</option>
-                                                <option *ngFor="let user of allUsers" [value]="user.id">{{user.realname || user.name}}</option>
+                                                <option *ngFor="let user of allUsers" [value]="user.id">{{user.firstname}}</option>
                                             </select>
                                             <button class="save-user-btn" (click)="saveUser(release)" [disabled]="savingUser[getUserKey(release)]">✔</button>
                                             <button class="cancel-user-btn" (click)="cancelUserEdit(release)">✕</button>
@@ -239,7 +239,7 @@
                                 </div>
                             </td>
                             <td class="text-left">{{item.departmentName || 'General'}}</td>
-                            <td class="text-left description-cell">{{item.description || item.title || '—'}}</td>
+                            <td class="text-left description-cell"> {{stripHtml(item.description || '—') }}</td>
                             <td class="text-left">
                                 <div *ngIf="!editingBuildNo[getTicketKey(item)]" class="inline-edit-display">
                                     <span (click)="editBuildNo(item)" style="cursor:pointer">{{item.buildNo || '—'}}</span>
@@ -295,7 +295,7 @@
                                 <div *ngIf="editingUser[getUserKey(item)]" class="user-editor-inline">
                                     <select [(ngModel)]="selectedUser[getUserKey(item)]" class="user-select">
                                         <option value="0">— Select —</option>
-                                        <option *ngFor="let user of allUsers" [value]="user.id">{{user.realname || user.name}}</option>
+                                        <option *ngFor="let user of allUsers" [value]="user.id">{{user.firstname}}</option>
                                     </select>
                                     <button class="save-user-btn" (click)="saveUser(item)" [disabled]="savingUser[getUserKey(item)]">✔</button>
                                     <button class="cancel-user-btn" (click)="cancelUserEdit(item)">✕</button>
@@ -464,7 +464,7 @@
                                 </div>
                             </td>
                             <td class="text-left">{{item.departmentName || 'General'}}</td>
-                            <td class="text-left description-cell">{{item.description || item.title || '—'}}</td>
+                            <td class="text-left description-cell">{{stripHtml(item.description || '—') }}</td>
                             <td class="text-left">
                                 <div *ngIf="!editingBuildNo[getTicketKey(item)]" class="inline-edit-display">
                                     <span (click)="editBuildNo(item)" style="cursor:pointer">{{item.buildNo || '—'}}</span>
@@ -520,7 +520,7 @@
                                 <div *ngIf="editingUser[getUserKey(item)]" class="user-editor-inline">
                                     <select [(ngModel)]="selectedUser[getUserKey(item)]" class="user-select">
                                         <option value="0">— Select —</option>
-                                        <option *ngFor="let user of allUsers" [value]="user.id">{{user.realname || user.name}}</option>
+                                        <option *ngFor="let user of allUsers" [value]="user.id">{{user.firstname}}</option>
                                     </select>
                                     <button class="save-user-btn" (click)="saveUser(item)" [disabled]="savingUser[getUserKey(item)]">✔</button>
                                     <button class="cancel-user-btn" (click)="cancelUserEdit(item)">✕</button>
@@ -689,7 +689,7 @@
                                 </td>
                                 <td class="text-left">{{item.buildNo || '—'}}</td>
                                 <td class="text-left">{{item.departmentName || 'General'}}</td>
-                                <td class="text-left description-cell">{{item.description || item.title || '—'}}</td>
+                               <td class="text-left description-cell">{{stripHtml(item.description || '—') }}</td>
                                 <td class="text-left">{{(item.plannedDate | date:'dd MMM yyyy') || 'TBD'}}</td>
                                 <td class="text-left">{{(item.scheduleBuildDate | date:'dd MMM yyyy') || 'TBD'}}</td>
                             </tr>
@@ -794,8 +794,8 @@
 <!-- ==================== CONFIRM DIALOG ==================== -->
 <div class="confirm-overlay" *ngIf="showConfirmDialog" (click)="onConfirmNo()">
     <div class="confirm-dialog" (click)="$event.stopPropagation()">
-        <div class="confirm-icon">🗑️</div>
-        <div class="confirm-title">Confirm Delete</div>
+        <!--<div class="confirm-icon">🗑️</div>
+        <div class="confirm-title">Confirm Delete</div>-->
         <div class="confirm-message">{{confirmDialogMessage}}</div>
         <div class="confirm-actions">
             <button class="confirm-btn-cancel" (click)="onConfirmNo()">Cancel</button>

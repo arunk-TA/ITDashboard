@@ -15,9 +15,6 @@ public class MOHController : ControllerBase
     private readonly IConfiguration _config;
     private readonly ILogger<MOHController> _logger;
 
-    // Cache login response for user data injection
-    private static string? _cachedLoginResponse = null;
-
     public MOHController(
         MOHService mohService,
         IConfiguration config,
@@ -56,9 +53,8 @@ public class MOHController : ControllerBase
 
             if (_mohService.IsHtmlResponse(bytes) || content.Contains("<html"))
             {
-                // ✅ Get token AND full login response for user data
                 var token = await _mohService.GetTokenAsync();
-                content = InjectScript(content, token ?? "");
+                content = InjectScript(content, token ?? "", MOHService.CachedLoginResponse ?? "");
 
                 Response.Headers.Remove("X-Frame-Options");
                 Response.Headers.Remove("Content-Security-Policy");
@@ -174,10 +170,13 @@ public class MOHController : ControllerBase
             if (string.IsNullOrEmpty(path))
                 return BadRequest(new { error = "Missing path parameter" });
 
+            _logger.LogInformation($"🔄 ===== PROXY API CALL ===== Path: {path}");
+
             if (!path.StartsWith("/"))
                 path = "/" + path;
 
-            _logger.LogInformation($"Proxying API call to: {path}");
+            var upstreamPath = path;
+            _logger.LogInformation($"🔄 Upstream path: {upstreamPath}");
 
             var method = Request.Method.ToUpper() switch
             {
@@ -194,20 +193,22 @@ public class MOHController : ControllerBase
                 body = await reader.ReadToEndAsync();
             }
 
-            var response = await _mohService.ProxyRequestAsync(path, method, body);
-
-            Response.Headers["Access-Control-Allow-Origin"] = "*";
-            Response.Headers["Access-Control-Allow-Headers"] = "*";
-            Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
-            Response.Headers["Access-Control-Expose-Headers"] = "*";
-
+            var response = await _mohService.ProxyRequestAsync(upstreamPath, method, body);
             var content = await response.Content.ReadAsStringAsync();
-
-            _logger.LogDebug($"Response status: {response.StatusCode}");
+            if (content.Contains("/media/%5Bnull%5D") || content.Contains("/media/[null]"))
+            {
+                content = content
+                    .Replace("\"http://stemzclock.stemzglobal.com/media/%5Bnull%5D\"", "null")
+                    .Replace("\"http://stemzclock.stemzglobal.com/media/[null]\"", "null")
+                    .Replace("\"https://stemzclock.stemzglobal.com/media/%5Bnull%5D\"", "null")
+                    .Replace("\"https://stemzclock.stemzglobal.com/media/[null]\"", "null");
+            }
+            _logger.LogInformation($"📡 Response for {upstreamPath}: {response.StatusCode}");
 
             if (response.Content.Headers.ContentType?.MediaType == "application/json" ||
                 content.TrimStart().StartsWith("{") || content.TrimStart().StartsWith("["))
             {
+                _logger.LogInformation($"📦 Response body (first 200 chars): {content.Substring(0, Math.Min(200, content.Length))}");
                 return Content(content, "application/json");
             }
 
@@ -217,7 +218,7 @@ public class MOHController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"MOH proxy-api error for path: {path}");
+            _logger.LogError(ex, $"❌ MOH proxy-api error for path: {path}");
             return StatusCode(500, new { error = ex.Message });
         }
     }
@@ -257,455 +258,331 @@ public class MOHController : ControllerBase
             return StatusCode(500);
         }
     }
-
-    // ✅ NOW ACCEPTS token parameter — fixes "JWT_TOKEN is not defined"
-    private string InjectScript(string content, string token)
+     
+    private string InjectScript(string content, string token, string loginResponseJson)
     {
-        var baseUrl = _config["MohApi:BaseUrl"] ?? "https://stemzclock.stemzglobal.com";
-        var clientId = _config["MohApi:ClientId"] ?? "CID-5992CE1D6D51";
-        var clientSecret = _config["MohApi:ClientSecretKey"] ?? "QnWYDw-h99kFaCfuhURWGEkwbzZmVvG1JsQOoR1JwAjHiOEtf5Js6g";
+        if (string.IsNullOrEmpty(token))
+            return content;
 
-        // ✅ Dynamically set prefix based on RoutePrefix config
+        var baseUrl = _config["MohApi:BaseUrl"] ?? "https://stemzclock.stemzglobal.com";
         var routePrefix = _config["AppSettings:RoutePrefix"] ?? "";
         var prefix = string.IsNullOrEmpty(routePrefix) ? "" : $"/{routePrefix}";
+        var apiEndpoint = $"{prefix}/MOH/proxy-api";
+        var assetEndpoint = $"{prefix}/MOH/proxy-asset";
 
-        // ✅ Works on both local (no prefix) and UAT (/api prefix)
-        var assetEndpoint = $"{prefix}/moh/proxy-asset";
-        var apiEndpoint = $"{prefix}/moh/proxy-api";
-
-
-        // ✅ Get user data from cached login response
-        var userId = "2";
-        var userName = "Nandakumar R";
-        var userEmail = "nandakumarr@stemzglobal.com";
-
-        var loginResponse = MOHService.CachedLoginResponse;
-
+        // Safely re-serialize the cached raw login response
+        string loginResponseForJs = "{}";
         try
         {
-            if (!string.IsNullOrEmpty(loginResponse))
-            {
-                var loginJson = JsonDocument.Parse(loginResponse);
-                if (loginJson.RootElement.TryGetProperty("user", out var userEl))
-                {
-                    userId = userEl.TryGetProperty("id", out var id) ? id.ToString() : userId;
-                    userName = userEl.TryGetProperty("name", out var name) ? name.GetString() ?? userName : userName;
-                    userEmail = userEl.TryGetProperty("email", out var email) ? email.GetString() ?? userEmail : userEmail;
-                }
-            }
+            using var doc = JsonDocument.Parse(string.IsNullOrEmpty(loginResponseJson) ? "{}" : loginResponseJson);
+            loginResponseForJs = JsonSerializer.Serialize(doc.RootElement);
         }
-        catch { /* use defaults */ }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"Could not parse cached login response for injection: {ex.Message}");
+        }
 
-        // ✅ Escape all values safe for JS string injection
-        static string JsStr(string s) => s
-            .Replace("\\", "\\\\")
-            .Replace("'", "\\'")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n")
-            .Replace("</", "<\\/");
+        // Rewrite relative src="/..." and href="/..."
+        content = System.Text.RegularExpressions.Regex.Replace(
+            content,
+            @"(src|href)=""(/(?!/)[^""]*)""",
+            m =>
+            {
+                var attr = m.Groups[1].Value;
+                var relPath = m.Groups[2].Value;
+                var absoluteTarget = baseUrl.TrimEnd('/') + relPath;
+                var rewritten = $"{assetEndpoint}?url={Uri.EscapeDataString(absoluteTarget)}";
+                return $@"{attr}=""{rewritten}""";
+            });
 
-        var safeToken = JsStr(token);
-        var safeBaseUrl = JsStr(baseUrl);
-        var safeAsset = JsStr(assetEndpoint);
-        var safeApi = JsStr(apiEndpoint);
-        var safeId = JsStr(userId);
-        var safeName = JsStr(userName);
-        var safeEmail = JsStr(userEmail);
-
-        var injectionScript = $@"
+        var mainScript = $@"
 <script>
 (function() {{
-    // ✅ Clear stale session from any previous user
-    try {{
-    localStorage.setItem('access_token', JWT_TOKEN);
-    localStorage.setItem('token', JWT_TOKEN);
-    // ... rest of setItem calls
-}} catch(e) {{}}
 
-    var JWT_TOKEN      = '{safeToken}';
-    var BASE_URL       = '{safeBaseUrl}';
-    var CLIENT_ID      = '{clientId}';
-    var CLIENT_SECRET  = '{clientSecret}';
-    var ASSET_ENDPOINT = '{safeAsset}';
-    var API_ENDPOINT   = '{safeApi}';
-    var USER_DATA      = {{ id: {safeId}, name: '{safeName}', email: '{safeEmail}' }};
+    // =========================
+    // ROUTE REWRITE
+    // =========================
+    var alreadyRedirected = false;
 
-    console.log('🔐 MOH Proxy Initializing...');
-    console.log('JWT_TOKEN length:', JWT_TOKEN ? JWT_TOKEN.length : 0);
-    console.log('USER_DATA:', USER_DATA);
-
-    // ✅ Seed localStorage with token under all possible keys the React app might check
-    try {{
-        localStorage.setItem('access_token', JWT_TOKEN);
-        localStorage.setItem('token', JWT_TOKEN);
-        localStorage.setItem('authToken', JWT_TOKEN);
-        localStorage.setItem('auth_token', JWT_TOKEN);
-        localStorage.setItem('jwt', JWT_TOKEN);
-        localStorage.setItem('jwt_token', JWT_TOKEN);
-        localStorage.setItem('user', JSON.stringify(USER_DATA));
-        localStorage.setItem('user_data', JSON.stringify(USER_DATA));
-        localStorage.setItem('userId', String(USER_DATA.id));
-        localStorage.setItem('user_id', String(USER_DATA.id));
-        console.log('✅ localStorage seeded');
-    }} catch(e) {{
-        console.warn('localStorage error:', e);
+    function rewriteUrl(url) {{
+        if (!alreadyRedirected && typeof url === 'string' &&
+            url.indexOf('/Dashboard') !== -1 &&
+            url.indexOf('/approvalDashboard') === -1) {{
+            alreadyRedirected = true;
+            return '/approvalDashboard';
+        }}
+        return url;
     }}
 
-    function redirectToApproval() {{
-        if (window.location.pathname !== '/approvalDashboard') {{
-            console.log('🔄 Redirecting to approvalDashboard...');
-            window.history.replaceState({{}}, '', '/approvalDashboard');
-            window.dispatchEvent(new PopStateEvent('popstate', {{ state: {{}} }}));
-        }}
-    }}
+    var origPushState = history.pushState;
+    var origReplaceState = history.replaceState;
 
-    // Try immediately and also after a short delay for React to mount
-    redirectToApproval();
-    setTimeout(redirectToApproval, 500);
-    setTimeout(redirectToApproval, 1500);
-
-    // Make token available globally for XHR interceptor
-    window.MOH_TOKEN = JWT_TOKEN;
-
-    // ── Intercept fetch ──────────────────────────────────────
-    var origFetch = window.fetch;
-    window.fetch = function(url, opts) {{
-        opts = opts || {{}};
-        opts.headers = opts.headers || {{}};
-        var urlStr = typeof url === 'string' ? url : (url && url.url ? url.url : '');
-
-        var isAbsoluteMoh = urlStr.startsWith(BASE_URL);
-        var isRelativeApi = urlStr.startsWith('/api/') && !urlStr.startsWith('/api/moh/');
-        var isAsset = /\.(js|css|png|jpg|jpeg|ico|svg|woff|woff2|ttf|map)(\?|$)/.test(urlStr);
-
-        if (isAbsoluteMoh || isRelativeApi) {{
-            if (JWT_TOKEN) opts.headers['Authorization'] = 'Bearer ' + JWT_TOKEN;
-            opts.headers['Client-ID'] = CLIENT_ID;
-            opts.headers['Client-Secret-Key'] = CLIENT_SECRET;
-
-            var path = isAbsoluteMoh ? urlStr.replace(BASE_URL, '') : urlStr;
-            try {{
-                var parsed = new URL(urlStr, BASE_URL);
-                path = parsed.pathname + parsed.search;
-            }} catch(e) {{}}
-
-            url = API_ENDPOINT + '?path=' + encodeURIComponent(path);
-            console.log('🔄 Proxying API:', urlStr, '→', url);
-            return origFetch.call(this, url, opts);
-        }}
-
-        // Asset rewriting
-        if (isAsset && urlStr.startsWith('/') && !urlStr.startsWith('/moh/')) {{
-            url = ASSET_ENDPOINT + '?url=' + encodeURIComponent(BASE_URL + urlStr);
-        }} else if (isAbsoluteMoh) {{
-            url = ASSET_ENDPOINT + '?url=' + encodeURIComponent(urlStr);
-        }}
-
-        if (JWT_TOKEN && !opts.headers['Authorization'])
-            opts.headers['Authorization'] = 'Bearer ' + JWT_TOKEN;
-
-        return origFetch.call(this, url, opts);
+    history.pushState = function(state, title, url) {{
+        return origPushState.call(this, state, title, rewriteUrl(url));
     }};
 
-    // ── Intercept XHR ────────────────────────────────────────
-    var origOpen = XMLHttpRequest.prototype.open;
-    var origSend = XMLHttpRequest.prototype.send;
-    var origSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+    history.replaceState = function(state, title, url) {{
+        return origReplaceState.call(this, state, title, rewriteUrl(url));
+    }};
+
+    try {{
+        origReplaceState.call(history, null, '', '/approvalDashboard');
+    }} catch(e) {{ }}
+
+    // =========================
+    // TOKEN STORAGE
+    // =========================
+    var API_ENDPOINT = '{apiEndpoint}';
+    var BASE_URL = '{baseUrl}';
+    var JWT_TOKEN = {JsonSerializer.Serialize(token)};
+    var LOGIN_DATA = {loginResponseForJs};
+
+    try {{
+        var accessVal = LOGIN_DATA.access || LOGIN_DATA.access_token || JWT_TOKEN;
+
+        if (accessVal) {{
+            localStorage.setItem('access_token', accessVal);
+            localStorage.setItem('token', accessVal);
+        }}
+
+        var refreshVal = LOGIN_DATA.refresh || LOGIN_DATA.refresh_token;
+        if (refreshVal) {{
+            localStorage.setItem('refresh_token', refreshVal);
+        }}
+
+        localStorage.setItem('roles', JSON.stringify(LOGIN_DATA.roles || []));
+        localStorage.setItem('user', JSON.stringify(LOGIN_DATA.user || {{}}));
+        localStorage.setItem('userEntity', JSON.stringify(LOGIN_DATA.userEntity || LOGIN_DATA.user || {{}}));
+
+        localStorage.setItem('session_active', 'true');
+        localStorage.setItem('session_timestamp', new Date().toISOString());
+    }} catch(e) {{ }}
+
+    // =========================
+    // API REWRITE
+    // =========================
+    function rewriteApiUrl(url) {{
+        if (typeof url !== 'string') return url;
+
+        if (url.indexOf(BASE_URL) === 0) {{
+            return API_ENDPOINT + '?path=' + encodeURIComponent(url.substring(BASE_URL.length));
+        }}
+
+        if (url.indexOf('/api/') === 0) {{
+            return API_ENDPOINT + '?path=' + encodeURIComponent(url);
+        }}
+
+        return url;
+    }}
+
+    var originalFetch = window.fetch;
+
+    window.fetch = function(url, options) {{
+        if (typeof url === 'string' && url.includes('wsm.sessionDeactivated')) {{
+            return Promise.resolve(new Response(JSON.stringify({{ status: 'active' }}), {{
+                status: 200,
+                headers: {{ 'Content-Type': 'application/json' }}
+            }}));
+        }}
+
+        if (typeof url === 'string') {{
+            url = rewriteApiUrl(url);
+        }}
+
+        return originalFetch.call(this, url, options);
+    }};
+
+    var originalXHROpen = XMLHttpRequest.prototype.open;
 
     XMLHttpRequest.prototype.open = function(method, url) {{
-        var urlStr = typeof url === 'string' ? url : '';
-        this._mohHeaders = {{}};
+        arguments[1] = rewriteApiUrl(url);
+        return originalXHROpen.apply(this, arguments);
+    }};
 
-        var isAbsoluteMoh = urlStr.startsWith(BASE_URL);
-        var isRelativeApi = urlStr.startsWith('/api/') && !urlStr.startsWith('/api/moh/');
-        var isAsset = /\.(js|css|png|jpg|jpeg|ico|svg|woff|woff2|ttf|map)(\?|$)/.test(urlStr);
+    // =========================
+    // UI CLEANUP
+    // =========================
 
-        if (isAbsoluteMoh || isRelativeApi) {{
-            var path = isAbsoluteMoh ? urlStr.replace(BASE_URL, '') : urlStr;
-            try {{
-                var parsed = new URL(urlStr, BASE_URL);
-                path = parsed.pathname + parsed.search;
-            }} catch(e) {{}}
-            url = API_ENDPOINT + '?path=' + encodeURIComponent(path);
-            this._mohHeaders['Authorization'] = 'Bearer ' + JWT_TOKEN;
-            this._mohHeaders['Client-ID'] = CLIENT_ID;
-            this._mohHeaders['Client-Secret-Key'] = CLIENT_SECRET;
-            console.log('🔄 XHR proxying:', urlStr, '→', url);
-        }} else if (isAsset && urlStr.startsWith('/') && !urlStr.startsWith('/moh/')) {{
-            url = ASSET_ENDPOINT + '?url=' + encodeURIComponent(BASE_URL + urlStr);
-        }} else if (isAbsoluteMoh && isAsset) {{
-            url = ASSET_ENDPOINT + '?url=' + encodeURIComponent(urlStr);
+    var style = document.createElement('style');
+    style.innerHTML = `
+        .MuiAppBar-root,
+        .MuiToolbar-root {{
+            display: none !important;
         }}
 
-        return origOpen.apply(this, [method, url].concat(Array.prototype.slice.call(arguments, 2)));
-    }};
-
-    XMLHttpRequest.prototype.setRequestHeader = function(header, value) {{
-        if (this._mohHeaders) this._mohHeaders[header] = value;
-        return origSetRequestHeader.call(this, header, value);
-    }};
-
-    XMLHttpRequest.prototype.send = function(body) {{
-        if (this._mohHeaders) {{
-            for (var key in this._mohHeaders) {{
-                try {{ origSetRequestHeader.call(this, key, this._mohHeaders[key]); }} catch(e) {{}}
-            }}
+        .MuiDrawer-root,
+        .MuiDrawer-paper {{
+            display: none !important;
         }}
-        return origSend.call(this, body);
-    }};
 
-    console.log('✅ MOH Proxy initialized');
+        .MuiBox-root,
+        .MuiContainer-root,
+        main {{
+            margin-left: 0 !important;
+            padding-left: 0 !important;
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+            width: 100% !important;
+        }}
 
-    // ─── TRIM/CLEANUP FUNCTIONS ─────────────────────────────────
-    function trimHeaderSection() {{
-        // Find and completely remove header containers
-        var headerSelectors = [
-            'header',
-            '.MuiAppBar-root',
-            '.MuiToolbar-root',
-            '[class*=""header""]',
-            '[class*=""Header""]',
-            '[class*=""navbar""]',
-            '[class*=""Navbar""]',
-            '[class*=""topbar""]',
-            '[class*=""TopBar""]',
-            '[class*=""appbar""]',
-            '[class*=""AppBar""]',
-            '[class*=""toolbar""]',
-            '[class*=""Toolbar""]'
-        ];
-        
-        headerSelectors.forEach(function(selector) {{
-            var elements = document.querySelectorAll(selector);
-            elements.forEach(function(el) {{
-                var text = (el.innerText || el.textContent || '').trim();
-                if (text.includes('Stemz Clock') || text.includes('Nandakumar R') || text.includes('Approver')) {{
-                    el.remove();
-                    console.log('🗑️ Removed header element');
-                }}
-            }});
-        }});
+        html, body {{
+            margin: 0 !important;
+            padding: 0 !important;
+        }}
+    `;
+    document.head.appendChild(style);
 
-        // Find and remove any parent containers that might contain the header
-        var allElements = document.querySelectorAll('div, section, nav, header');
-        allElements.forEach(function(el) {{
-            var text = (el.innerText || el.textContent || '').trim();
-            if ((text.includes('Stemz Clock') || text.includes('Nandakumar R') || text.includes('Approver')) && 
-                text.length < 200) {{
-                el.remove();
-                console.log('🗑️ Removed header container');
-            }}
-        }});
-
-        // Remove the entire AppBar container
-        var appBarContainers = document.querySelectorAll('.MuiAppBar-root, [class*=""AppBar""], [class*=""appbar""]');
-        appBarContainers.forEach(function(el) {{
-            el.remove();
-            console.log('🗑️ Removed AppBar container');
-        }});
-
-        // Hide user info section
-        var userElements = document.querySelectorAll('[class*=""user""], [class*=""User""], [class*=""profile""], [class*=""Profile""], [class*=""avatar""], [class*=""Avatar""]');
-        userElements.forEach(function(el) {{
-            var text = (el.innerText || el.textContent || '').trim();
-            if (text.includes('Nandakumar R') || text.includes('Approver')) {{
-                el.style.display = 'none';
-                console.log('🙈 Hidden user/profile section');
+    function removePanels() {{
+        document.querySelectorAll('.MuiPaper-root').forEach(function(card) {{
+            var text = (card.innerText || '').trim();
+            if (text.indexOf('Platforms') === 0 || text.indexOf('Recent Pending Requests') === 0) {{
+                card.remove();
             }}
         }});
     }}
+function expandApprovalStatusOverview() {{
+        document.querySelectorAll('h6').forEach(function(h6) {{
+            var text = (h6.textContent || '').trim();
+            if (text !== 'Approval Status Overview') return;
 
-    // ── Hide unwanted sections ────────────────────────────────
-    var _mohCleanupDone = false;
+            var card = h6.closest('.MuiPaper-root');
+            if (!card) return;
 
-    function hideUnwantedSections() {{
-        // Find all section headings/cards and hide by text content
-        var allElements = document.querySelectorAll('*');
-        
-        for (var i = 0; i < allElements.length; i++) {{
-            var el = allElements[i];
-            
-            // Skip if already hidden or if it has many children (container)
-            if (el.children.length > 10) continue;
-            
-            var text = el.innerText || el.textContent || '';
-            var trimmed = text.trim();
-            
-            // Hide 'Recent Pending Requests' card
-            if (trimmed === 'Recent Pending Requests') {{
-                let card = el.closest('.MuiCard-root');
-                if (card) {{
-                    card.style.display = 'none';
-                    console.log('🙈 Hidden entire Recent Pending Requests card');
-                }}
-            }}
-            // Hide 'Platforms' card
-            if (trimmed === 'Platforms') {{
-                var card = el.closest('[class*=""card""], [class*=""Card""], [class*=""widget""], [class*=""Widget""], [class*=""section""], [class*=""col""], [class*=""grid""]');
-                if (card) {{
-                    card.style.display = 'none';
-                    console.log('🙈 Hidden: Platforms');
-                }}
-            }}
-        }}
+            // Force the card itself to fill its row
+            card.style.width = '100%';
+            card.style.maxWidth = '100%';
+            card.style.flex = '1 1 100%';
 
-        // Make Approval Status Overview take full width
-        var approvalElements = document.querySelectorAll('*');
-        for (var j = 0; j < approvalElements.length; j++) {{
-            var el = approvalElements[j];
-            var text = (el.innerText || el.textContent || '').trim();
-            if (text === 'Approval Status Overview') {{
-                var card = el.closest('[class*=""card""], [class*=""Card""], [class*=""widget""], [class*=""Widget""], [class*=""col""], [class*=""grid""]');
-                if (card) {{
-                    card.style.width = '100%';
-                    card.style.flex = '1 1 100%';
-                    card.style.maxWidth = '100%';
-                    console.log('📐 Expanded: Approval Status Overview to full width');
-                }}
-            }}
-        }}
-    }}
-
-    function expandApprovalStatusOverview() {{
-        document.querySelectorAll('h6').forEach(function(el) {{
-            var text = (el.innerText || el.textContent || '').trim();
-            if (text === 'Approval Status Overview') {{
-                var card = el.closest('.MuiCard-root');
-                if (!card) return;
-                var gridItem = card.parentElement;
-                gridItem.style.flex = '0 0 100%';
+            // Force the grid/flex item wrapping the card to also span full width
+            var gridItem = card.parentElement;
+            if (gridItem) {{
+                gridItem.style.flexBasis = '100%';
                 gridItem.style.maxWidth = '100%';
                 gridItem.style.width = '100%';
-                card.style.width = '100%';
-                console.log('📐 Approval Status Overview expanded to full row');
+                gridItem.style.flex = '1 1 100%';
+            }}
+
+            // ApexCharts renders at a fixed pixel width on load — force it to
+            // recalculate now that its container is wider
+            if (window.ApexCharts) {{
+                setTimeout(function() {{
+                    window.dispatchEvent(new Event('resize'));
+                }}, 100);
             }}
         }});
     }}
 
-    // ── Run all cleanup functions ────────────────────────────
-function removeLeftDrawer() {{
-
-    // Remove drawer completely
-    document.querySelectorAll('.MuiDrawer-root').forEach(function(el){{
-        el.remove();
-    }});
-
-    document.querySelectorAll('.MuiDrawer-paper').forEach(function(el){{
-        el.remove();
-    }});
-
-    // Expand main content
-    document.querySelectorAll('main').forEach(function(el){{
-        el.style.marginLeft = '0px';
-        el.style.paddingLeft = '0px';
-        el.style.width = '100%';
-        el.style.maxWidth = '100%';
-    }});
-
-    // Remove MUI left offset
-    document.querySelectorAll('.MuiBox-root').forEach(function(el){{
-
-        var style = getComputedStyle(el);
-
-        if (
-            style.marginLeft === '240px' ||
-            style.paddingLeft === '240px'
-        ) {{
-            el.style.marginLeft = '0px';
-            el.style.paddingLeft = '0px';
-            el.style.width = '100%';
-            el.style.maxWidth = '100%';
-        }}
-    }});
-
-    console.log('✅ Left drawer removed');
-}}
- function removeTopWhiteSpace() {{
-
-    // Remove browser default margin
-    document.documentElement.style.margin = '0';
-    document.documentElement.style.padding = '0';
-
-    document.body.style.margin = '0';
-    document.body.style.padding = '0';
-
-    // Remove MUI top spacing
-    document.querySelectorAll('.MuiBox-root').forEach(function(el){{
-
-        var style = getComputedStyle(el);
-
-        if (
-            parseInt(style.paddingTop) > 0 ||
-            parseInt(style.marginTop) > 0
-        ){{
-            el.style.paddingTop = '0px';
-            el.style.marginTop = '0px';
-        }}
-    }});
-
-    console.log('✅ Top whitespace removed');
-}}
-
     function runCleanup() {{
-        trimHeaderSection();
-        hideUnwantedSections();
+        removePanels();
         expandApprovalStatusOverview();
-        removeTopWhiteSpace();
-        removeLeftDrawer();
     }}
+    
 
-    // Run after React renders
-    setTimeout(runCleanup, 500);
-    setTimeout(runCleanup, 1500);
-    setTimeout(runCleanup, 3000);
-    setTimeout(runCleanup, 5000);
-
-    // Run after DOM is ready
     if (document.readyState === 'loading') {{
-        document.addEventListener('DOMContentLoaded', function() {{
-            setTimeout(runCleanup, 500);
-            setTimeout(runCleanup, 1500);
-            setTimeout(runCleanup, 3000);
-        }});
+        document.addEventListener('DOMContentLoaded', runCleanup);
     }} else {{
-        setTimeout(runCleanup, 500);
-        setTimeout(runCleanup, 1500);
-        setTimeout(runCleanup, 3000);
+        runCleanup();
     }}
 
-    // MutationObserver to catch React re-renders
-    var observer = new MutationObserver(function(mutations) {{
-        runCleanup();
-    }});
-    document.addEventListener('DOMContentLoaded', function() {{
-        observer.observe(document.body, {{ childList: true, subtree: true }});
-    }});
+    // Repeat cleanup on an interval to catch late/async-rendered panels
+    var cleanupInterval = setInterval(runCleanup, 400);
+    setTimeout(function() {{ clearInterval(cleanupInterval); }}, 20000);
 
-    console.log('✅ MOH Proxy initialized with cleanup');
 }})();
 </script>";
-        //content = content
-        //    .Replace("src=\"/assets/", $"src=\"{assetEndpoint}?url={baseUrl}/assets/")
-        //    .Replace("href=\"/assets/", $"href=\"{assetEndpoint}?url={baseUrl}/assets/")
-        //    .Replace("src=\"assets/", $"src=\"{assetEndpoint}?url={baseUrl}/assets/")
-        //    .Replace("href=\"assets/", $"href=\"{assetEndpoint}?url={baseUrl}/assets/")
-        //    .Replace("src=\"/_next/", $"src=\"{assetEndpoint}?url={baseUrl}/_next/")
-        //    .Replace("href=\"/_next/", $"href=\"{assetEndpoint}?url={baseUrl}/_next/")
-        //    .Replace("src='/_next/", $"src='{assetEndpoint}?url={baseUrl}/_next/")
-        //    .Replace("href='/_next/", $"href='{assetEndpoint}?url={baseUrl}/_next/");
-        content = content
-    .Replace("src=\"/assets/", $"src=\"{prefix}/moh/proxy-asset?url={baseUrl}/assets/")
-    .Replace("href=\"/assets/", $"href=\"{prefix}/moh/proxy-asset?url={baseUrl}/assets/")
-    .Replace("src=\"assets/", $"src=\"{prefix}/moh/proxy-asset?url={baseUrl}/assets/")
-    .Replace("href=\"assets/", $"href=\"{prefix}/moh/proxy-asset?url={baseUrl}/assets/")
-    .Replace("src=\"/_next/", $"src=\"{prefix}/moh/proxy-asset?url={baseUrl}/_next/")
-    .Replace("href=\"/_next/", $"href=\"{prefix}/moh/proxy-asset?url={baseUrl}/_next/")
-    .Replace("src='/_next/", $"src='{prefix}/moh/proxy-asset?url={baseUrl}/_next/")
-    .Replace("href='/_next/", $"href='{prefix}/moh/proxy-asset?url={baseUrl}/_next/");
-
         if (content.Contains("<head>", StringComparison.OrdinalIgnoreCase))
-            return content.Replace("<head>", "<head>" + injectionScript, StringComparison.OrdinalIgnoreCase);
+        {
+            content = content.Replace("<head>", "<head>" + mainScript, StringComparison.OrdinalIgnoreCase);
+        }
+        else if (content.Contains("<html", StringComparison.OrdinalIgnoreCase))
+        {
+            content = content.Replace("<html", "<html><head>" + mainScript + "</head>", StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            content = mainScript + content;
+        }
 
-        return injectionScript + content;
+        return content;
+    }
+    [HttpGet("dashboard/counts")]
+    public async Task<IActionResult> GetTaskCounts([FromQuery] int userId)
+    {
+        var response = await _mohService.ProxyRequestAsync(
+            $"/api/task/tasks/counts/?user_id={userId}", HttpMethod.Get);
+        var content = await response.Content.ReadAsStringAsync();
+        return Content(content, "application/json");
+    }
+
+    [HttpGet("dashboard/approvals")]
+    public async Task<IActionResult> GetPendingApprovals([FromQuery] int userId)
+    {
+        var response = await _mohService.ProxyRequestAsync(
+            $"/api/task/tasks/approvals/?user_id={userId}", HttpMethod.Get);
+        var content = await response.Content.ReadAsStringAsync();
+        return Content(content, "application/json");
+    }
+
+    [HttpGet("dashboard/approval-status-overview")]
+    public async Task<IActionResult> GetApprovalStatusOverview([FromQuery] int userId, [FromQuery] string view = "monthly")
+    {
+        var response = await _mohService.ProxyRequestAsync(
+            $"/api/task/tasks/approval-status-overview/?user_id={userId}&view={view}", HttpMethod.Get);
+        var content = await response.Content.ReadAsStringAsync();
+        return Content(content, "application/json");
+    }
+
+    [HttpGet("dashboard/platform-wise-users")]
+    public async Task<IActionResult> GetPlatformWiseUsers([FromQuery] int approverUserId)
+    {
+        var response = await _mohService.ProxyRequestAsync(
+            $"/api/task/tasks/platform-wise-users/?approver_user_id={approverUserId}", HttpMethod.Get);
+        var content = await response.Content.ReadAsStringAsync();
+        return Content(content, "application/json");
+    }
+
+    [HttpGet("dashboard/time-distribution")]
+    public async Task<IActionResult> GetTimeDistribution([FromQuery] int userId, [FromQuery] string view = "monthly")
+    {
+        var response = await _mohService.ProxyRequestAsync(
+            $"/api/task/tasks/member/time-distribution/?user_id={userId}&view={view}", HttpMethod.Get);
+        var content = await response.Content.ReadAsStringAsync();
+        return Content(content, "application/json");
+    }
+
+    [HttpGet("dashboard/top-platforms")]
+    public async Task<IActionResult> GetTopPlatforms([FromQuery] int userId, [FromQuery] string view = "monthly")
+    {
+        var response = await _mohService.ProxyRequestAsync(
+            $"/api/task/tasks/top-platforms/?user_id={userId}&view={view}", HttpMethod.Get);
+        var content = await response.Content.ReadAsStringAsync();
+        return Content(content, "application/json");
+    }
+    [HttpGet("dashboard/profile")]
+    public async Task<IActionResult> GetProfile()
+    {
+        var response = await _mohService.ProxyRequestAsync("/api/task/profile/", HttpMethod.Get);
+        var content = await response.Content.ReadAsStringAsync();
+
+        if (content.Contains("/media/%5Bnull%5D") || content.Contains("/media/[null]"))
+        {
+            content = content
+                .Replace("\"http://stemzclock.stemzglobal.com/media/%5Bnull%5D\"", "null")
+                .Replace("\"http://stemzclock.stemzglobal.com/media/[null]\"", "null")
+                .Replace("\"https://stemzclock.stemzglobal.com/media/%5Bnull%5D\"", "null")
+                .Replace("\"https://stemzclock.stemzglobal.com/media/[null]\"", "null");
+        }
+
+        return Content(content, "application/json");
+    }
+    [HttpGet("debug-api")]
+    public IActionResult DebugApi()
+    {
+        return Ok(new
+        {
+            message = "API proxy is working",
+            timestamp = DateTime.UtcNow,
+            baseUrl = _config["MohApi:BaseUrl"]
+        });
     }
 }

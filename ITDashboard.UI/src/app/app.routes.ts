@@ -43,7 +43,7 @@ export const routes: Routes = [
                     import('./components/portfolio/portfolio.component').then(m => m.PortfolioComponent)
             },
             {
-                path: 'moh-dashboard',  // ← NEW ROUTE
+                path: 'moh-dashboard',
                 loadComponent: () =>
                     import('./components/moh-dashboard/moh-dashboard.component').then(m => m.MohDashboardComponent)
             },

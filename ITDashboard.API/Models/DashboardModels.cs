@@ -15,6 +15,11 @@ public class EntityModel
     public bool IsActive { get; set; }
     public DateTime CreatedDate { get; set; }
 }
+public class KeyRiskOrderUpdate
+{
+    public int Id { get; set; }
+    public int DisplayOrder { get; set; }
+}
 
 // ─── Master Configuration (dropdowns) ───────────────────────
 public class MasterConfigModel
@@ -220,6 +225,7 @@ public class PortfolioSummaryModel
     public long InProgress { get; set; }
     public long InProduction { get; set; }
     public long Overdue { get; set; }
+    public int DisplayOrder { get; set; }
     public List<PlatformInfo>? Platforms { get; set; }  // Add this
 }
 
@@ -279,6 +285,7 @@ public class UserModel
     public string Name { get; set; } = string.Empty;
     public string? Realname { get; set; }
     public string? Email { get; set; }
+    public string? firstname { get; set; }
 }
 public class BuildDocumentModel
 {
