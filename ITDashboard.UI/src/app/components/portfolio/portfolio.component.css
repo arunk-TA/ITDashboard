@@ -15,8 +15,101 @@
     margin: 0;
     padding: 0;
 }
+.table-scroll-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
 
-/* ==========================================
+.project-table {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 1230px;
+    border-collapse: collapse;
+}
+    /* Headers should never truncate — only data cells should */
+    .project-table th {
+        overflow: visible;
+        white-space: nowrap;
+        text-overflow: unset;
+    }
+
+        /* Widen Ticket No column slightly to fit the label */
+        .project-table th:nth-child(1),
+        .project-table td:nth-child(1) {
+            width: 100px;
+        }
+
+    .project-table th,
+    .project-table td {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        padding: 10px 12px;
+        box-sizing: border-box;
+    }
+
+        /* Column 1: Ticket No */
+        .project-table th:nth-child(1),
+        .project-table td:nth-child(1) {
+            width: 90px;
+        }
+
+        /* Column 2: Department */
+        .project-table th:nth-child(2),
+        .project-table td:nth-child(2) {
+            width: 110px;
+        }
+
+        /* Column 3: Description */
+        .project-table th:nth-child(3),
+        .project-table td:nth-child(3) {
+            width: 220px;
+            white-space: nowrap; /* keep — the inner .description-cell span handles ellipsis */
+        }
+
+        /* Column 4: Build No */
+        .project-table th:nth-child(4),
+        .project-table td:nth-child(4) {
+            width: 100px;
+        }
+
+        /* Column 5: Planned Date */
+        .project-table th:nth-child(5),
+        .project-table td:nth-child(5) {
+            width: 110px;
+        }
+
+        /* Column 6: Build Date */
+        .project-table th:nth-child(6),
+        .project-table td:nth-child(6) {
+            width: 110px;
+        }
+
+        /* Column 7: Assigned Resource */
+        .project-table th:nth-child(7),
+        .project-table td:nth-child(7) {
+            width: 160px;
+            white-space: normal; /* names can wrap if needed */
+        }
+
+        /* Column 8: Status */
+        .project-table th:nth-child(8),
+        .project-table td:nth-child(8) {
+            width: 140px;
+        }
+
+        /* Column 9: Release Notes */
+        .project-table th:nth-child(9),
+        .project-table td:nth-child(9) {
+            width: 110px;
+        }
+
+        /* Column 10: Delete */
+        .project-table th:nth-child(10),
+        .project-table td:nth-child(10) {
+            width: 70px;
+            text-align: center;
+        }/* ==========================================
    SHELL & SIDEBAR
    ========================================== */
 .shell {
@@ -946,71 +1039,9 @@
         background: #f8fafc;
     }
 
-    /* First / last col centering */
-    .project-table th:first-child,
-    .project-table td:first-child,
-    .release-table th:first-child,
-    .release-table td:first-child {
-        text-align: center;
-        width: 36px;
-        min-width: 36px;
-    }
+     
 
-    .project-table th:last-child,
-    .project-table td:last-child,
-    .release-table th:last-child,
-    .release-table td:last-child {
-        text-align: center;
-    }
-
-    /* project-table specific column widths */
-    .project-table th:nth-child(2), .project-table td:nth-child(2) {
-        width: 10%;
-    }
-
-    .project-table th:nth-child(3), .project-table td:nth-child(3) {
-        width: 36%;
-    }
-
-    .project-table th:nth-child(4), .project-table td:nth-child(4) {
-        width: 8%;
-    }
-
-    .project-table th:nth-child(5), .project-table td:nth-child(5) {
-        width: 9%;
-    }
-
-    .project-table th:nth-child(6), .project-table td:nth-child(6) {
-        width: 9%;
-    }
-
-    .project-table th:nth-child(7), .project-table td:nth-child(7) {
-        width: 13%;
-    }
-
-    .project-table th:nth-child(8), .project-table td:nth-child(8) {
-        width: 12%;
-    }
-
-    .project-table th:nth-child(9), .project-table td:nth-child(9) {
-        width: 9%;
-        white-space: nowrap;
-    }
-
-    .project-table th:nth-child(10), .project-table td:nth-child(10) {
-        width: 50px;
-        min-width: 50px;
-        max-width: 50px;
-        padding: 4px;
-        text-align: center;
-    }
-
-    .project-table th:nth-child(11), .project-table td:nth-child(11) {
-        width: 40px;
-        min-width: 40px;
-        text-align: center;
-    }
-
+     
     /* release-table (Previous Releases) column widths */
     .release-table th:nth-child(2), .release-table td:nth-child(2) {
         width: 10%;
@@ -1032,9 +1063,84 @@
         width: 12%;
     }
 
-/* Description cell — allow wrapping */
 .description-cell {
+    display: block;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+    .description-cell:hover {
+        text-decoration: underline;
+        color: #0b2b4a;
+    }
+/* ==========================================
+   DESCRIPTION PREVIEW MODAL
+   ========================================== */
+.desc-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+
+.desc-modal {
+    background: #fff;
+    border-radius: 12px;
+    width: 520px;
+    max-width: 92%;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    animation: modalSlideUp 0.25s ease;
+}
+
+.desc-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #d6e8f5;
+    font-weight: 600;
+    color: #1a3a5c;
+}
+
+.desc-modal-close {
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: #5c7a9a;
+    line-height: 1;
+    padding: 0 4px;
+}
+
+    .desc-modal-close:hover {
+        color: #1a3a5c;
+    }
+
+.desc-modal-body {
+    padding: 18px 20px;
+    overflow-y: auto;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: #1a3a5c;
+    white-space: pre-wrap;
     word-break: break-word;
+}
+
+.desc-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 12px 20px;
+    border-top: 1px solid #d6e8f5;
 }
 
 /* ==========================================

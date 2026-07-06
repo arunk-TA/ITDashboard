@@ -1,4 +1,4 @@
-import{$a as s,Ha as r,La as l,_a as t,ab as n,bc as d,fa as p,qb as o}from"./chunk-ND53VYCC.js";var c=class i{constructor(e){this.el=e;this.htmlContent=`
+import{$a as s,Ha as r,La as l,Yb as d,_a as t,ab as n,fa as p,pb as o}from"./chunk-CXALQMOO.js";var c=class i{constructor(e){this.el=e;this.htmlContent=`
         <!-- PASTE THE FULL CONTENT OF it_resource_dashboard_combined.html HERE (everything EXCEPT the <script src="chart.js"> tag) -->
     `}ngAfterViewInit(){let e=this.el.nativeElement.querySelector("[\\#chartHost]")||this.el.nativeElement.querySelector('div[class="ceo-content-card"] > div');this.renderHTML(e)}renderHTML(e){if(e.innerHTML=this.getBodyHTML(),window.Chart)this.runChartScript(e);else{let a=document.createElement("script");a.src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js",a.onload=()=>this.runChartScript(e),document.head.appendChild(a)}}runChartScript(e){let a=document.createElement("script");a.textContent=this.getChartScript(),e.appendChild(a)}getBodyHTML(){return`
 <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:1.75rem;">

@@ -127,6 +127,10 @@ export class PortfolioComponent implements OnInit {
     editingUser: { [key: string]: boolean } = {};
     savingUser: { [key: string]: boolean } = {};
 
+    showDescriptionModal: boolean = false;
+    selectedDescriptionText: string = '';
+    selectedDescriptionTicket: string = '';
+
     openStatusIds: number[] = [];
     pipelineCardsByStatus: Map<string, any[]> = new Map();
     inProgressStatusIds: number[] = [];
@@ -416,6 +420,20 @@ export class PortfolioComponent implements OnInit {
         this.incidentSearchTerm = '';
         this.incidentSearchResults = [];
         this.selectedIncident = null;
+        this.cdr.detectChanges();
+    }
+
+    openDescriptionModal(item: any): void {
+        this.selectedDescriptionText = this.stripHtml(item.description || item.title || 'No description available');
+        this.selectedDescriptionTicket = item.ticketNo ? `Ticket #${item.ticketNo}` : (item.title || '');
+        this.showDescriptionModal = true;
+        this.cdr.detectChanges();
+    }
+
+    closeDescriptionModal(): void {
+        this.showDescriptionModal = false;
+        this.selectedDescriptionText = '';
+        this.selectedDescriptionTicket = '';
         this.cdr.detectChanges();
     }
 
