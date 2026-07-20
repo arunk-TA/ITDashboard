@@ -1,6 +1,7 @@
 ﻿// app.routes.ts
 import { Routes } from '@angular/router';
 import { AuthGuard } from './guards/auth.guard';
+import { PresentationsComponent } from './components/presentations/presentations.component';
 
 export const routes: Routes = [
     // ✅ Login - Public route (no AuthGuard)
@@ -26,6 +27,10 @@ export const routes: Routes = [
                 path: 'ceo-resourcing',
                 loadComponent: () =>
                     import('./components/ceo-resourcing/ceo-resourcing.component').then(m => m.CeoResourcingComponent)
+            },
+            {
+                path: 'presentations',
+                loadComponent: () => import('./components/presentations/presentations.component').then(m => m.PresentationsComponent)
             },
             {
                 path: 'ceo-support',

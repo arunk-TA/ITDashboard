@@ -12,7 +12,13 @@ public interface IDashboardRepository
     Task<IEnumerable<TicketModel>> SearchInactiveIncidentsAsync(string searchTerm);
     Task LogAuditAsync(int ticketId, string action, string? fieldName, string? oldValue, string? newValue, string? changedBy, int? changedById = null);
     Task<IEnumerable<AuditLogModel>> GetTicketAuditLogAsync(int ticketId);
-    Task<bool> UpdateTicketStatusAsync(int ticketId, int statusId, string? changedBy = null, int? changedById = null);
+    Task<bool> UpdateDepartmentAsync(int ticketId, int departmentId, string? changedBy = null, int? changedById = null);
+    //Task<bool> UpdateTicketStatusAsync(int ticketId, int statusId, string? changedBy = null, int? changedById = null);
+    Task<(bool Success, int AppliedStatusId, string? AppliedStatusName)> UpdateTicketStatusAsync(
+        int ticketId,
+        int statusId,
+        string? changedBy = null,
+        int? changedById = null);
     Task<bool> UpdateBuildNoAsync(int ticketId, string buildNo, string? changedBy = null, int? changedById = null);
     Task<bool> UpdatePlannedDateAsync(int ticketId, DateTime? plannedDate, string? changedBy = null, int? changedById = null);
     Task<bool> UpdateBuildDateAsync(int ticketId, DateTime? buildDate, string? changedBy = null, int? changedById = null);
@@ -46,6 +52,7 @@ public interface IDashboardRepository
     Task<KeyRiskModel?> GetKeyRiskByIdAsync(int id);
     Task<bool> DeleteKeyRiskAsync(int id);
     Task<IEnumerable<UserModel>> GetActiveUsersAsync();
+
 }
 
 public class DashboardRepository : IDashboardRepository
@@ -301,32 +308,89 @@ public class DashboardRepository : IDashboardRepository
     }
 
     // ─── UPDATE TICKET STATUS ──────────────────────────────────
-    public async Task<bool> UpdateTicketStatusAsync(int ticketId, int statusId, string? changedBy = null, int? changedById = null)
+    public async Task<(bool Success, int AppliedStatusId, string? AppliedStatusName)> UpdateTicketStatusAsync(
+    int ticketId, int statusId, string? changedBy = null, int? changedById = null)
     {
         using var conn = CreateConnection();
 
-        var oldStatus = await conn.QueryFirstOrDefaultAsync<string>(@"
-            SELECT mc.field_name 
-            FROM public.tickets_createtickets t
-            JOIN public.tickets_master_configuration mc ON mc.id = t.status_id AND mc.field_type = 'Status'
-            WHERE t.id = @TicketId",
+        var ticketInfo = await conn.QueryFirstOrDefaultAsync<(string? OldStatus, int TypeId)>(@"
+        SELECT mc.field_name AS OldStatus, t.type_id AS TypeId
+        FROM public.tickets_createtickets t
+        LEFT JOIN public.tickets_master_configuration mc 
+            ON mc.id = t.status_id AND mc.field_type = 'Status'
+        WHERE t.id = @TicketId",
             new { TicketId = ticketId });
 
         var newStatus = await conn.QueryFirstOrDefaultAsync<string>(@"
-            SELECT field_name FROM public.tickets_master_configuration 
-            WHERE id = @StatusId",
+        SELECT field_name FROM public.tickets_master_configuration 
+        WHERE id = @StatusId",
             new { StatusId = statusId });
 
+        var appliedStatusId = statusId;
+        var appliedStatusName = newStatus;
+
+        const int INCIDENT_TYPE_ID = 51;
+
+        // Business rule: for Incident tickets, both "Closed" and "In Production"
+        // actually mean "Solved" — redirect to the Solved status instead.
+        if (ticketInfo.TypeId == INCIDENT_TYPE_ID &&
+            (string.Equals(newStatus, "Closed", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(newStatus, "In Production", StringComparison.OrdinalIgnoreCase)))
+        {
+            var solvedStatusId = await conn.QueryFirstOrDefaultAsync<int?>(@"
+            SELECT id FROM public.tickets_master_configuration 
+            WHERE field_type = 'Status' AND field_name = 'Solved'
+            LIMIT 1");
+
+            if (solvedStatusId.HasValue)
+            {
+                appliedStatusId = solvedStatusId.Value;
+                appliedStatusName = "Solved";
+            }
+        }
+
         var rows = await conn.ExecuteAsync(@"
-            UPDATE public.tickets_createtickets 
-            SET status_id = @StatusId, updated_date = CURRENT_TIMESTAMP
-            WHERE id = @TicketId",
-            new { TicketId = ticketId, StatusId = statusId });
+        UPDATE public.tickets_createtickets 
+        SET status_id = @StatusId, updated_date = CURRENT_TIMESTAMP
+        WHERE id = @TicketId",
+            new { TicketId = ticketId, StatusId = appliedStatusId });
 
         if (rows > 0)
         {
             await LogAuditAsync(ticketId, "STATUS_CHANGED", "status",
-                oldStatus, newStatus, changedBy ?? "System", changedById);
+                ticketInfo.OldStatus, appliedStatusName, changedBy ?? "System", changedById);
+        }
+
+        return (rows > 0, appliedStatusId, appliedStatusName);
+    }
+
+    // ─── UPDATE DEPARTMENT ──────────────────────────────────────
+    public async Task<bool> UpdateDepartmentAsync(int ticketId, int departmentId, string? changedBy = null, int? changedById = null)
+    {
+        using var conn = CreateConnection();
+
+        var oldVal = await conn.QueryFirstOrDefaultAsync<string>(@"
+        SELECT dept.field_name
+        FROM public.tickets_createtickets t
+        LEFT JOIN public.tickets_master_configuration dept 
+            ON dept.id = t.department_id AND dept.field_type = 'Department'
+        WHERE t.id = @TicketId",
+            new { TicketId = ticketId });
+
+        var newVal = await conn.QueryFirstOrDefaultAsync<string>(
+            "SELECT field_name FROM public.tickets_master_configuration WHERE id = @DepartmentId",
+            new { DepartmentId = departmentId });
+
+        var rows = await conn.ExecuteAsync(@"
+        UPDATE public.tickets_createtickets 
+        SET department_id = @DepartmentId, updated_date = CURRENT_TIMESTAMP
+        WHERE id = @TicketId",
+            new { TicketId = ticketId, DepartmentId = departmentId });
+
+        if (rows > 0)
+        {
+            await LogAuditAsync(ticketId, "DEPARTMENT_CHANGED", "department_id",
+                oldVal, newVal, changedBy ?? "System", changedById);
         }
 
         return rows > 0;
@@ -734,7 +798,8 @@ public class DashboardRepository : IDashboardRepository
                 category,
                 created_date as CreatedDate, 
                 updated_date as UpdatedDate,
-                is_active as IsActive
+                is_active as IsActive,
+            is_draft as IsDraft
             FROM public.key_risks
             WHERE is_active = TRUE
             AND (@EntityId IS NULL OR entity_id = @EntityId)
@@ -788,7 +853,8 @@ public class DashboardRepository : IDashboardRepository
                 MitigationPlan = request.MitigationPlan ?? string.Empty,
                 EntityId = request.EntityId ?? 1,
                 Category = request.Category ?? "key_risks",
-                CreatedBy = createdBy ?? "System"
+                CreatedBy = createdBy ?? "System",
+                IsDraft = request.IsDraft   // ✅ new
             });
 
             return id;
@@ -806,19 +872,20 @@ public class DashboardRepository : IDashboardRepository
         try
         {
             var sql = @"
-                UPDATE public.key_risks
-                SET 
-                    title = @Title,
-                    description = @Description,
-                    severity = @Severity,
-                    status = @Status,
-                    assigned_to = @AssignedTo,
-                    due_date = @DueDate,
-                    mitigation_plan = @MitigationPlan,
-                    category = @Category,
-                    updated_date = NOW(),
-                    updated_by = @UpdatedBy
-                WHERE id = @Id";
+            UPDATE public.key_risks
+            SET 
+                title = @Title,
+                description = @Description,
+                severity = @Severity,
+                status = @Status,
+                assigned_to = @AssignedTo,
+                due_date = @DueDate,
+                mitigation_plan = @MitigationPlan,
+                category = @Category,
+                is_draft = @IsDraft,
+                updated_date = NOW(),
+                updated_by = @UpdatedBy
+            WHERE id = @Id";
 
             var result = await conn.ExecuteAsync(sql, new
             {
@@ -831,6 +898,7 @@ public class DashboardRepository : IDashboardRepository
                 DueDate = request.DueDate,
                 MitigationPlan = request.MitigationPlan ?? "",
                 Category = request.Category ?? "key_risks",
+                IsDraft = request.IsDraft,   // ✅ new
                 UpdatedBy = updatedBy ?? "System"
             });
 

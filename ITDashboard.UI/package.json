@@ -18,10 +18,12 @@
     "@angular/platform-browser-dynamic": "^21.2.0",
     "@angular/router": "^21.2.0",
     "@tinymce/tinymce-angular": "^9.1.1",
+    "chart.js": "^4.5.1",
     "html2pdf.js": "^0.14.0",
     "rxjs": "~7.8.0",
     "tinymce": "^8.6.0",
     "tslib": "^2.3.0",
+    "xlsx": "^0.18.5",
     "zone.js": "~0.15.0"
   },
   "devDependencies": {

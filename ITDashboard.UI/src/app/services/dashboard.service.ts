@@ -91,7 +91,9 @@ export class DashboardService {
     updateTicketStatus(ticketId: number, statusId: number, statusName: string): Observable<any> {
         return this.http.put(`${this.base}/tickets/${ticketId}/status`, { statusId, statusName });
     }
-
+    updateTicketDepartment(ticketId: number, departmentId: number) {
+        return this.http.put(`${this.base}/tickets/${ticketId}/department`, { departmentId });
+    }
     // ── Subcategories ───────────────────────────────────────────
     getSubcategories(categoryId?: number, entityId?: number): Observable<SubcategoryModel[]> {
         let params = new HttpParams();

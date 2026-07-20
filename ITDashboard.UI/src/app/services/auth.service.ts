@@ -22,8 +22,34 @@ export class AuthService {
         this.loadUserFromStorage();
     }
 
+    //login(credentials: LoginRequest): Observable<LoginResponse> {
+    //    // Enforce strong parameter binding to prevent mapping errors
+    //    const payload: LoginRequest = {
+    //        username: credentials.username.trim(),
+    //        password: credentials.password
+    //    };
+
+    //    return this.http.post<LoginResponse>(`${this.base}/login`, payload).pipe(
+    //        tap((response) => {
+    //            if (response && response.token) {
+    //                localStorage.setItem('token', response.token);
+    //                localStorage.setItem('user', JSON.stringify(response.user));
+    //                this.currentUserSubject.next(response.user);
+    //                this.updateCache(response.user);
+    //            }
+    //        })
+    //    );
+    //}
+
+    //logout(): void {
+    //    localStorage.removeItem('token');
+    //    localStorage.removeItem('user');
+    //    this.currentUserSubject.next(null);
+    //    this.cachedUserRoles = [];
+    //    this.cachedPermissions = null;
+    //}
+
     login(credentials: LoginRequest): Observable<LoginResponse> {
-        // Enforce strong parameter binding to prevent mapping errors
         const payload: LoginRequest = {
             username: credentials.username.trim(),
             password: credentials.password
@@ -32,8 +58,8 @@ export class AuthService {
         return this.http.post<LoginResponse>(`${this.base}/login`, payload).pipe(
             tap((response) => {
                 if (response && response.token) {
-                    localStorage.setItem('token', response.token);
-                    localStorage.setItem('user', JSON.stringify(response.user));
+                    localStorage.setItem('itdb_token', response.token);
+                    localStorage.setItem('itdb_user', JSON.stringify(response.user));
                     this.currentUserSubject.next(response.user);
                     this.updateCache(response.user);
                 }
@@ -42,15 +68,15 @@ export class AuthService {
     }
 
     logout(): void {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        localStorage.removeItem('itdb_token');
+        localStorage.removeItem('itdb_user');
         this.currentUserSubject.next(null);
         this.cachedUserRoles = [];
         this.cachedPermissions = null;
     }
 
     private loadUserFromStorage(): void {
-        const userStr = localStorage.getItem('user');
+        const userStr = localStorage.getItem('itdb_user');
         if (userStr) {
             try {
                 const user = JSON.parse(userStr);
@@ -61,6 +87,22 @@ export class AuthService {
             }
         }
     }
+
+    getToken(): string | null {
+        return localStorage.getItem('itdb_token');
+    }
+    //private loadUserFromStorage(): void {
+    //    const userStr = localStorage.getItem('user');
+    //    if (userStr) {
+    //        try {
+    //            const user = JSON.parse(userStr);
+    //            this.currentUserSubject.next(user);
+    //            this.updateCache(user);
+    //        } catch {
+    //            this.logout();
+    //        }
+    //    }
+    //}
 
     private updateCache(user: UserDto | null): void {
         if (!user) {
@@ -80,9 +122,9 @@ export class AuthService {
         this.cachedPermissions = user.permissions || null;
     }
 
-    getToken(): string | null {
-        return localStorage.getItem('token');
-    }
+    //getToken(): string | null {
+    //    return localStorage.getItem('token');
+    //}
 
     isLoggedIn(): boolean {
         return !!this.getToken();

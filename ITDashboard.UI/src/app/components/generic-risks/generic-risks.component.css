@@ -105,7 +105,7 @@
     gap: 20px;
     width: 100%;
     align-items: flex-start;
-    justify-content: flex-start; /* Align cards to the left */
+    justify-content: flex-start;
 }
 
 /* ===== RISK CARD ===== */
@@ -118,7 +118,7 @@
     transition: box-shadow 0.2s;
     padding: 16px;
     padding-top: 44px;
-    display: inline-flex; /* Changed from flex to inline-flex */
+    display: inline-flex;
     flex-direction: column;
     width: 350px;
     min-width: 280px;
@@ -131,7 +131,8 @@
     flex-shrink: 0;
     flex-grow: 0;
     z-index: 1;
-    vertical-align: top; /* Align to top */
+    vertical-align: top;
+    flex: 0 0 auto;
 }
 
     .risk-card:active,
@@ -166,7 +167,7 @@
         opacity: 0.8;
     }
 
-/* Drag handle */
+/* ===== DRAG HANDLE ===== */
 .drag-handle {
     position: absolute;
     top: 0;
@@ -206,6 +207,68 @@
     color: #999;
 }
 
+/* ===== CARD ACTIONS AT TOP - FIXED ALIGNMENT ===== */
+.card-actions {
+    position: absolute;
+    top: 38px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 6px;
+    padding: 4px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.risk-card:hover .card-actions {
+    opacity: 1;
+}
+
+.card-actions button {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    background: transparent;
+    padding: 0;
+}
+
+.card-actions .btn-view {
+    color: #1a6e63;
+}
+
+    .card-actions .btn-view:hover {
+        background: #e8f5f0;
+        transform: scale(1.1);
+    }
+
+.card-actions .btn-edit {
+    color: #555;
+}
+
+    .card-actions .btn-edit:hover {
+        background: #e0e0e0;
+        transform: scale(1.1);
+    }
+
+.card-actions .btn-delete {
+    color: #dc3545;
+}
+
+    .card-actions .btn-delete:hover {
+        background: #fde8ea;
+        transform: scale(1.1);
+    }
+
 /* ===== CARD CONTENT ===== */
 .risk-card-content {
     flex: 1;
@@ -215,7 +278,8 @@
     min-height: 100px;
     overflow: visible;
     box-sizing: border-box;
-    height: auto;
+    height: 100%;
+    padding-right: 40px;
 }
 
 .risk-header {
@@ -235,7 +299,8 @@
     flex-wrap: wrap;
 }
 
-.severity-badge, .status-badge {
+.severity-badge,
+.status-badge {
     padding: 3px 10px;
     border-radius: 12px;
     font-size: 10px;
@@ -295,10 +360,7 @@
     overflow: visible;
 }
 
-/* ======================================== */
-/* ===== RISK DESCRIPTION - FORCE WRAP ===== */
-/* ======================================== */
-
+/* ===== RISK DESCRIPTION ===== */
 .risk-description {
     margin-bottom: 10px;
     color: #555;
@@ -437,16 +499,13 @@
         display: block !important;
     }
 
-/* ======================================== */
-/* ===== END OF RISK DESCRIPTION FIX ===== */
-/* ======================================== */
-
 /* ===== RISK DETAILS ===== */
 .risk-details {
     border-top: 1px solid #f0f0f0;
     padding-top: 10px;
     width: 100%;
     flex-shrink: 0;
+    margin-top: auto;
 }
 
 .detail-item {
@@ -471,48 +530,6 @@
         flex: 1;
     }
 
-/* ===== RISK ACTIONS ===== */
-.risk-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #e8dfc8;
-    width: 100%;
-    flex-wrap: wrap;
-    flex-shrink: 0;
-}
-
-.btn-edit, .btn-delete {
-    padding: 4px 12px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-}
-
-.btn-edit {
-    background: #f0f0f0;
-    color: #333;
-}
-
-    .btn-edit:hover {
-        background: #e0e0e0;
-    }
-
-.btn-delete {
-    background: #dc3545;
-    color: white;
-}
-
-    .btn-delete:hover {
-        background: #c82333;
-    }
-
 /* ===== DRAGGING STATES ===== */
 .risk-card.dragging {
     opacity: 0.4;
@@ -532,6 +549,24 @@
     .risk-card.dragging *,
     .risk-card.drag-over * {
         user-select: none;
+    }
+
+/* ===== VIEW DETAILS LINK ===== */
+.view-details-link {
+    color: #1a6e63;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+    .view-details-link:hover {
+        opacity: 1;
+        text-decoration: underline;
     }
 
 /* ===== LOADING & NO RESULTS ===== */
@@ -558,7 +593,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.5);
     z-index: 1000;
     justify-content: center;
     align-items: center;
@@ -571,13 +606,17 @@
 .modal-content {
     background: white;
     border-radius: 8px;
-    width: 90%;
-    max-width: 700px;
+    width: 95%;
+    max-width: 1200px; /* Same for both */
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
+.modal-large {
+    max-width: 1200px !important; /* Same as regular modal */
+    width: 95% !important;
+}
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -606,6 +645,72 @@
     padding: 20px;
 }
 
+.modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid #e8dfc8;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* ===== VIEW MODAL LARGE ===== */
+ 
+
+.modal-large {
+    max-width: 1200px !important; /* Same as regular modal */
+    width: 95% !important;
+}
+
+/* ===== VIEW DETAILS ===== */
+.view-details {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.view-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+    .view-row:last-child {
+        border-bottom: none;
+    }
+
+    .view-row label {
+        font-weight: 600;
+        min-width: 120px;
+        color: #555;
+    }
+
+    .view-row span {
+        color: #333;
+        word-break: break-word;
+        flex: 1;
+    }
+
+.view-description {
+    flex: 1;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    padding: 8px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    min-height: 60px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+    .view-description * {
+        max-width: 100% !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+    }
+
+/* ===== FORM ===== */
 .form-group {
     margin-bottom: 16px;
 }
@@ -633,15 +738,8 @@
     gap: 16px;
 }
 
-.modal-footer {
-    padding: 16px 20px;
-    border-top: 1px solid #e8dfc8;
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
-
-.btn-cancel, .btn-save {
+.btn-cancel,
+.btn-save {
     padding: 8px 20px;
     border: none;
     border-radius: 4px;
@@ -667,7 +765,8 @@
         background: #a82828;
     }
 
-    .btn-cancel:disabled, .btn-save:disabled {
+    .btn-cancel:disabled,
+    .btn-save:disabled {
         opacity: 0.6;
         cursor: not-allowed;
     }
@@ -753,6 +852,16 @@
         background: #c82333;
     }
 
+.draft-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background-color: #f0ad4e;
+    color: #fff;
+    text-transform: uppercase;
+}
 /* ===== TOAST NOTIFICATIONS ===== */
 .toast-container {
     position: fixed;
@@ -875,7 +984,8 @@
         flex-direction: column;
     }
 
-    .filter-search, .filter-select {
+    .filter-search,
+    .filter-select {
         width: 100%;
     }
 
@@ -891,6 +1001,10 @@
         flex-shrink: 1;
     }
 
+    .card-actions {
+        opacity: 1;
+    }
+
     .form-row {
         grid-template-columns: 1fr;
     }
@@ -902,6 +1016,20 @@
     .drag-handle {
         justify-content: center;
         padding: 4px 8px;
+    }
+
+    .view-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+        .view-row label {
+            min-width: auto;
+        }
+
+    .modal-large {
+        max-width: 95% !important;
+        width: 95% !important;
     }
 
     .risk-description table th,
@@ -931,8 +1059,18 @@
 
     .risk-card {
         padding: 12px;
-        padding-top: 40px;
+        padding-top: 44px;
         min-height: 180px;
+    }
+
+    .risk-card-content {
+        padding-right: 35px;
+    }
+
+    .card-actions button {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
     }
 
     .risk-details .detail-item {
@@ -951,4 +1089,100 @@
         padding: 3px 4px !important;
         font-size: 11px !important;
     }
+}
+/* ===== DRAFT BUTTON STYLES ===== */
+.btn-draft {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s ease;
+}
+
+    .btn-draft:hover {
+        background: #5a6268;
+    }
+
+    .btn-draft:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+/* ===== SAVE BUTTON (existing) ===== */
+.btn-save {
+    background: #8b2020;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s ease;
+}
+
+    .btn-save:hover {
+        background: #a82828;
+    }
+
+    .btn-save:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+/* ===== CANCEL BUTTON (existing) ===== */
+.btn-cancel {
+    background: #f0f0f0;
+    color: #333;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s ease;
+}
+
+    .btn-cancel:hover {
+        background: #e0e0e0;
+    }
+
+    .btn-cancel:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+/* ===== DRAFT BADGE ON CARDS ===== */
+.draft-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    background-color: #f0ad4e;
+    color: #fff;
+    text-transform: uppercase;
+}
+
+/* ===== MODAL FOOTER LAYOUT ===== */
+.modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid #e8dfc8;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ===== RESPONSIVE FIX FOR MOBILE ===== */
+@media (max-width: 480px) {
+    .modal-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+        .modal-footer button {
+            width: 100%;
+        }
 }

@@ -138,6 +138,8 @@ export interface PortfolioSummaryModel {
     platforms?: PlatformInfo[];
     inProgress: number;
     yetToStart: number;
+    onHold?: number; 
+    readyToDeploy: number; 
 
 }
 
@@ -222,17 +224,24 @@ export interface ReleaseNote {
     createdAt?: Date;
     updatedAt?: Date;
 }
-export interface KeyRiskModel {
-    id: number;
+export interface Risk {
+    id?: number;
     title: string;
     description: string;
-    severity: 'Low' | 'Medium' | 'High' | 'Critical';
-    status: 'Open' | 'In Progress' | 'Resolved' | 'Closed';
-    assignedTo: string;
-    dueDate: string;
-    createdDate: string;
-    updatedDate: string;
+    severity: string;
+    status: string;        // 'Open', 'Closed', etc.
+    assignedTo?: string;
+    dueDate?: string;
     mitigationPlan?: string;
+    isDraft?: boolean;     // New field for draft status
+    isActive?: boolean;    // For soft delete
+    submittedAt?: string;
+    submittedBy?: string;
+    createdBy?: string;
+    updatedBy?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    category?: string;     // 'key_risks' or 'ceo_attention'
     displayOrder?: number;
 }
 
@@ -246,8 +255,25 @@ export interface CreateKeyRiskRequest {
     dueDate?: string;
     mitigationPlan?: string;
     entityId?: number;
+    isDraft?: boolean;
 }
 
+export interface KeyRiskModel {
+    id: number;
+    title: string;
+    description: string;
+    severity: string;
+    status: string;
+    assignedTo?: string;
+    dueDate?: string;
+    mitigationPlan?: string;
+    entityId?: number;
+    category?: string;
+    createdDate?: string;
+    updatedDate?: string;
+    isActive?: boolean;
+    isDraft?: boolean;
+}
 export interface UpdateKeyRiskRequest {
     title: string;
     description?: string;
@@ -256,6 +282,7 @@ export interface UpdateKeyRiskRequest {
     assignedTo?: string;
     dueDate?: string;
     mitigationPlan?: string;
+    isDraft?: boolean;
 }
 export interface CategoryModel {
     id: number;

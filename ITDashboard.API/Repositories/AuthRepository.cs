@@ -93,45 +93,34 @@ public class AuthRepository : IAuthRepository
         }
     }
 
+    public async Task<List<int>> GetUserRoleIdsAsync(int userId)
+    {
+        using var conn = CreateConnection();
+        const string sql = @"
+        SELECT roles_ids
+        FROM public.users
+        WHERE id = @UserId";
+
+        var json = await conn.QueryFirstOrDefaultAsync<string>(sql, new { UserId = userId });
+        if (string.IsNullOrWhiteSpace(json) || json == "[]") return new List<int>();
+
+        return System.Text.Json.JsonSerializer.Deserialize<List<int>>(json) ?? new List<int>();
+    }
+
     public async Task<UserPermissions> GetUserPermissionsAsync(int userId)
     {
-        var roles = await GetUserRolesAsync(userId);
-        var roleIds = roles.Select(r => r.Id).ToList();
+        using var conn = CreateConnection();
 
-        var permissions = new UserPermissions
-        {
-            CanView = true
-        };
+        const string sql = @"
+        SELECT can_view AS CanView, can_edit AS CanEdit, can_delete AS CanDelete,
+               can_assign_resource AS CanAssignResource, can_create AS CanCreate,
+               can_manage_users AS CanManageUsers
+        FROM public.user_permissions_override
+        WHERE user_id = @UserId";
 
-        if (roleIds.Contains(80))
-        {
-            permissions.CanEdit = true;
-            permissions.CanDelete = true;
-            permissions.CanAssignResource = true;
-            permissions.CanCreate = true;
-            permissions.CanManageUsers = true;
-            return permissions;
-        }
+        var permissions = await conn.QueryFirstOrDefaultAsync<UserPermissions>(sql, new { UserId = userId });
 
-        if (roleIds.Contains(504))
-        {
-            permissions.CanEdit = true;
-            permissions.CanDelete = true;
-            permissions.CanAssignResource = true;
-            permissions.CanCreate = true;
-            permissions.CanManageUsers = false;
-            return permissions;
-        }
-        if (roleIds.Contains(145))
-        {
-            permissions.CanEdit = true;
-            permissions.CanDelete = true;
-            permissions.CanAssignResource = true;
-            permissions.CanCreate = true;
-            permissions.CanManageUsers = true;
-            return permissions;
-        }
-        return permissions;
+        return permissions ?? new UserPermissions { CanView = true };
     }
 
     private async Task<EmailConfigModel?> GetEmailConfigAsync()
@@ -458,6 +447,7 @@ public class AuthRepository : IAuthRepository
         // Django format: algorithm$iterations$salt$hash
         return $"pbkdf2_sha256${iterations}${salt}${hashBase64}";
     }
+
     private async Task<string?> GetEmailTemplateAsync(string eventName)
     {
         using var conn = CreateConnection();

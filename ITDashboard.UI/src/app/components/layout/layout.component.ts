@@ -26,7 +26,7 @@ export class LayoutComponent implements OnInit {
     entities: EntityModel[] = [];
     selectedEntityId: number | null = null;
     kpi: DashboardKpiModel | null = null;
-
+    private readonly closedStatusIds = [46];
     allPlatforms: PlatformModel[] = [];
     allTickets: TicketModel[] = [];
     selectedEntityPlatforms: PlatformWithCount[] = [];
@@ -252,7 +252,9 @@ export class LayoutComponent implements OnInit {
             allIds: p.allIds,
             name: p.fieldName,
             ticketCount: this.allTickets.filter(t =>
-                t.entityId === entityId && (p.allIds ?? [p.id]).includes(t.platformId ?? -1)
+                t.entityId === entityId &&
+                (p.allIds ?? [p.id]).includes(t.platformId ?? -1) &&
+                !this.closedStatusIds.includes(t.statusId ?? 0)
             ).length
         }));
 

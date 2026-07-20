@@ -69,12 +69,31 @@ public class DashboardController : ControllerBase
     }
 
      
+   // [HttpPut("tickets/{ticketId}/status")]
+    //public async Task<IActionResult> UpdateTicketStatus(int ticketId, [FromBody] UpdateStatusRequest request)
+    //{
+    //    var success = await _repo.UpdateTicketStatusAsync(ticketId, request.StatusId, GetCurrentUser(), GetCurrentUserId());
+    //    if (!success) return NotFound();
+    //    return Ok(new { message = "Status updated successfully" });
+    //}
     [HttpPut("tickets/{ticketId}/status")]
     public async Task<IActionResult> UpdateTicketStatus(int ticketId, [FromBody] UpdateStatusRequest request)
     {
-        var success = await _repo.UpdateTicketStatusAsync(ticketId, request.StatusId, GetCurrentUser(), GetCurrentUserId());
-        if (!success) return NotFound();
-        return Ok(new { message = "Status updated successfully" });
+        var (success, appliedStatusId, appliedStatusName) = await _repo.UpdateTicketStatusAsync(
+            ticketId,
+            request.StatusId,
+            GetCurrentUser(),
+            GetCurrentUserId());
+
+        if (!success)
+            return NotFound();
+
+        return Ok(new
+        {
+            message = "Status updated successfully",
+            appliedStatusId,
+            appliedStatusName
+        });
     }
     [HttpGet("tickets/{ticketId}/audit-log")]
     public async Task<IActionResult> GetAuditLog(int ticketId)
@@ -1124,7 +1143,17 @@ public class DashboardController : ControllerBase
         return Ok(new { message = "Build No updated successfully" });
     }
 
+
+    [HttpPut("tickets/{ticketId}/department")]
+    public async Task<IActionResult> UpdateDepartment(int ticketId, [FromBody] UpdateDepartmentRequest request)
+    {
+        var success = await _repo.UpdateDepartmentAsync(ticketId, request.DepartmentId, GetCurrentUser(), GetCurrentUserId());
+        if (!success) return NotFound();
+        return Ok(new { message = "Department updated successfully" });
+    }
+
     [HttpPut("tickets/{ticketId}/planned-date")]
+
     public async Task<IActionResult> UpdatePlannedDate(int ticketId, [FromBody] UpdatePlannedDateRequest request)
     {
         var success = await _repo.UpdatePlannedDateAsync(ticketId, request.PlannedDate, GetCurrentUser(), GetCurrentUserId());
@@ -1228,5 +1257,9 @@ public class DashboardController : ControllerBase
     public class ReorderRequest
     {
         public List<int> Ids { get; set; } = new List<int>();
+    }
+    public class UpdateDepartmentRequest
+    {
+        public int DepartmentId { get; set; }
     }
 }

@@ -265,6 +265,7 @@ public class CreateKeyRiskRequest
     public string? MitigationPlan { get; set; }
     public int? EntityId { get; set; }
     public string? Category { get; set; }
+    public bool IsDraft { get; set; } = false;
 }
 
 public class UpdateKeyRiskRequest
@@ -277,6 +278,7 @@ public class UpdateKeyRiskRequest
     public DateTime? DueDate { get; set; }
     public string? MitigationPlan { get; set; }
     public string? Category { get; set; }
+    public bool IsDraft { get; set; } = false;
 }
 
 public class UserModel

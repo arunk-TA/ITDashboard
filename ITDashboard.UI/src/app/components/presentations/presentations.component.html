@@ -1,0 +1,159 @@
+﻿<div class="presentations-container">
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <h2>📊 Presentations Library</h2>
+            <span class="file-count" *ngIf="!loading">{{ totalFiles }} files</span>
+            <button class="btn-refresh" (click)="refreshList()" title="Refresh list">
+                <i class="ti ti-refresh"></i>
+            </button>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-toggle" (click)="toggleViewer()">
+                <i class="ti" [class.ti-eye]="!showViewer" [class.ti-eye-off]="showViewer"></i>
+                {{ showViewer ? 'Hide' : 'Show' }} Viewer
+            </button>
+        </div>
+    </div>
+
+    <!-- Search Box -->
+    <div class="search-box">
+        <i class="ti ti-search"></i>
+        <input type="text"
+               placeholder="Search presentations..."
+               [(ngModel)]="searchTerm"
+               (input)="searchPresentations()" />
+        <span class="search-count" *ngIf="searchTerm && !loading">
+            {{ filteredPresentations.length }} results
+        </span>
+    </div>
+    <!-- Upload -->
+    <div class="upload-box">
+        <label class="btn btn-toggle" [class.disabled]="isUploading">
+            <i class="ti" [class.ti-upload]="!isUploading" [class.ti-loader]="isUploading"
+               [class.spinning]="isUploading"></i>
+            {{ isUploading ? 'Uploading...' : 'Upload PPTX' }}
+            <input type="file" accept=".pptx" (change)="onFileSelected($event)"
+                   [disabled]="isUploading" hidden />
+        </label>
+    </div>
+
+    <div *ngIf="successMessage" class="success-message">
+        {{ successMessage }}
+        <button class="btn-close-error" (click)="successMessage = ''">✕</button>
+    </div>
+    <!-- Error Message -->
+    <div *ngIf="errorMessage" class="error-message">
+        <i class="ti ti-alert-circle"></i>
+        {{ errorMessage }}
+        <button class="btn-close-error" (click)="errorMessage = ''">✕</button>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="loading" class="loading-state">
+        <i class="ti ti-loader spinning"></i>
+        Scanning for presentations...
+    </div>
+
+    <!-- Main Content -->
+    <div *ngIf="!loading && presentations.length > 0">
+        <!-- Viewer Type Selector (shown when viewer is open) -->
+        <div *ngIf="showViewer && selectedPresentation" class="viewer-controls">
+            <div class="viewer-info">
+                <span class="viewer-file-name">{{ selectedPresentation.displayName }}</span>
+                <span class="viewer-file-type">{{ selectedPresentation.fileName }}</span>
+            </div>
+            <div class="viewer-options">
+                <span class="viewer-label">Viewer:</span>
+                <button class="viewer-btn" [class.active]="viewerType === 'google'" (click)="switchViewer('google')">
+                    Google Docs
+                </button>
+                <button class="viewer-btn" [class.active]="viewerType === 'microsoft'" (click)="switchViewer('microsoft')">
+                    Microsoft Office
+                </button>
+                <button class="viewer-btn" [class.active]="viewerType === 'direct'" (click)="switchViewer('direct')">
+                    Download
+                </button>
+            </div>
+        </div>
+
+        <!-- File List -->
+        <div class="presentations-grid">
+            <div *ngFor="let ppt of filteredPresentations" class="presentation-card"
+                 [class.active]="selectedPresentation === ppt"
+                 (click)="viewPresentation(ppt)">
+                <div class="card-icon">
+                    <span class="icon-emoji">{{ getFileIcon() }}</span>
+                </div>
+                <div class="card-content">
+                    <h3>{{ ppt.displayName }}</h3>
+                    <p class="card-meta">
+                        <span class="file-name">{{ ppt.fileName }}</span>
+                    </p>
+                </div>
+                <div class="card-actions">
+                    <button class="btn-download" (click)="$event.stopPropagation(); downloadPresentation(ppt)" title="Download">
+                        <i class="ti ti-download"></i>
+                    </button>
+                    <button class="btn-view" (click)="$event.stopPropagation(); viewPresentation(ppt)" title="View">
+                        <i class="ti ti-eye"></i>
+                    </button>
+                    <button class="btn-delete" (click)="deletePresentation(ppt, $event)" title="Delete">
+                        <i class="ti ti-trash"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- No Results -->
+            <div *ngIf="filteredPresentations.length === 0" class="no-results">
+                <i class="ti ti-file-empty"></i>
+                <p>{{ searchTerm ? 'No presentations match your search' : 'No presentations available' }}</p>
+            </div>
+        </div>
+
+        <!-- PPT Viewer -->
+        <div class="ppt-viewer-wrapper" *ngIf="showViewer && selectedPresentation">
+            <div class="ppt-viewer" *ngIf="pptUrl && viewerType !== 'direct'">
+                <div class="viewer-header">
+                    <span class="viewer-title">
+                        {{ selectedPresentation.displayName }}
+                        <span class="viewer-badge">{{ viewerType === 'google' ? 'Google Docs' : 'Microsoft Office' }}</span>
+                    </span>
+                    <button class="btn-close" (click)="closeViewer()">✕</button>
+                </div>
+                <div class="viewer-content">
+                    <iframe [src]="pptUrl"
+                            width="100%"
+                            height="550"
+                            frameborder="0"
+                            allowfullscreen
+                            (error)="handleIframeError()">
+                    </iframe>
+                    <div *ngIf="previewError" class="iframe-error">
+                        <i class="ti ti-alert-triangle"></i>
+                        <p>Unable to preview this file</p>
+                        <button class="btn-download-alt" (click)="downloadPresentation(selectedPresentation)">
+                            <i class="ti ti-download"></i> Download File
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Direct Download Message -->
+            <div *ngIf="viewerType === 'direct'" class="direct-download">
+                <i class="ti ti-download"></i>
+                <h3>Downloading {{ selectedPresentation.displayName }}</h3>
+                <button class="btn-download-large" (click)="downloadPresentation(selectedPresentation)">
+                    <i class="ti ti-download"></i> Download Now
+                </button>
+                <button class="btn-close-viewer" (click)="closeViewer()">Close</button>
+            </div>
+
+            <!-- Downloading State -->
+            <div *ngIf="isDownloading" class="downloading-state">
+                <i class="ti ti-loader spinning"></i>
+                <p>Downloading...</p>
+            </div>
+        </div>
+    </div>
+</div>

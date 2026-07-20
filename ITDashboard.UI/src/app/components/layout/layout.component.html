@@ -21,7 +21,10 @@
                 <i class="ti ti-layout-dashboard"></i>
                 <span *ngIf="!isSidebarCollapsed">Home</span>
             </a>
-
+            <a class="nav-item" routerLink="/presentations" routerLinkActive="active">
+                <i class="ti ti-file-presentation"></i>
+                <span *ngIf="!isSidebarCollapsed">Presentations</span>
+            </a>
             <!-- Key Risks Link - Show for CEO, Supervisor, Admin -->
             <!-- Also show for Viewer if they have CEO role (Raman) -->
             <a class="nav-item"
@@ -40,7 +43,7 @@
                routerLinkActive="active">
                 <i class="ti ti-star"></i>
                 <span *ngIf="!isSidebarCollapsed">CEO Attention</span>
-                <span class="nav-badge warning"></span>
+                <!--<span class="nav-badge warning"></span>-->
             </a>
 
         </nav>
@@ -70,7 +73,7 @@
                    (click)="selectPlatform(platform)">
                     <i class="ti ti-apps"></i>
                     <span *ngIf="!isSidebarCollapsed">{{platform.name}}</span>
-                    <span class="nav-badge">{{platform.ticketCount}}</span>
+                    <span class="nav-badge" *ngIf="!isSidebarCollapsed">{{platform.ticketCount}}</span>
                 </a>
             </ng-container>
         </nav>

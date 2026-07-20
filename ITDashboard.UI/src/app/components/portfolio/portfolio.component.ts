@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, ChangeDetectorRef, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+﻿import { Component, OnInit, ChangeDetectorRef, CUSTOM_ELEMENTS_SCHEMA, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -11,7 +11,9 @@ import { TTSService } from '../../services/tts.service';
 import { AuthService } from '../../services/auth.service';
 import { Pipe, PipeTransform } from '@angular/core';
 import { catchError, map } from 'rxjs/operators';
-
+import * as XLSX from 'xlsx';
+import { Chart, registerables } from 'chart.js';
+Chart.register(...registerables);
 @Pipe({
     name: 'rnTypeFilter',
     standalone: true
@@ -42,6 +44,54 @@ export class RNTypeFilterPipe implements PipeTransform {
 })
    
 export class PortfolioComponent implements OnInit {
+    showBCPModal = false;
+    bcpModalMinimized = false;
+    bcpFileName: string = '';
+    bcpEntityName: string = '';
+    bcpDepts: any[] = [];
+    bcpFilter: 'all' | 'g' | 'a' | 'r' = 'all';
+    bcpSubStatusFilter: string | null = null; 
+    bcpSearchTerm: string = '';
+    bcpOpenedDepts: Set<string> = new Set();
+    bcpDeptDropdownOpen = false;
+    private bcpChartInstance: Chart | null = null;
+    private bcpResourceCanvasRef?: ElementRef<HTMLCanvasElement>;
+    private bcpResizeObserver: ResizeObserver | null = null;
+
+    @ViewChild('bcpResourceCanvas')
+    set bcpResourceCanvas(ref: ElementRef<HTMLCanvasElement> | undefined) {
+        this.bcpResourceCanvasRef = ref;
+        if (ref) {
+            setTimeout(() => this.renderBcpResourceChart());
+            this.observeBcpDonutResize(ref);
+        }
+    }
+
+    private observeBcpDonutResize(ref: ElementRef<HTMLCanvasElement>): void {
+        this.bcpResizeObserver?.disconnect();
+        const container = ref.nativeElement.parentElement; // .bcp-donut-box
+        if (!container) return;
+
+        this.bcpResizeObserver = new ResizeObserver(() => {
+            if (this.bcpChartInstance) {
+                this.bcpChartInstance.resize();
+            }
+        });
+        this.bcpResizeObserver.observe(container);
+    }
+    bcpLastUploadedDate: string = '';
+    private bcpColorPalette = [
+        { ib: '#EAF3DE', ic2: '#27500A' },
+        { ib: '#E6F1FB', ic2: '#0C447C' },
+        { ib: '#FCEBEB', ic2: '#791F1F' },
+        { ib: '#EEEDFE', ic2: '#3C3489' },
+        { ib: '#FAEEDA', ic2: '#633806' },
+        { ib: '#E1F5EE', ic2: '#085041' },
+        { ib: '#FAECE7', ic2: '#712B13' },
+        { ib: '#F1EFE8', ic2: '#444441' },
+    ];
+
+
     showCreateTicketModal = false;
     savingTicket = false;
     newTicket: any = {};
@@ -59,7 +109,7 @@ export class PortfolioComponent implements OnInit {
     allCategories: any[] = [];
     allDepartments: any[] = [];
 
-    private readonly closedStatusIds = [46, 153];
+    private readonly closedStatusIds = [46];
 
 
     _canEdit: boolean = false;
@@ -87,6 +137,9 @@ export class PortfolioComponent implements OnInit {
 
 
     private toastCounter = 0;
+    editingDepartment: { [key: string]: boolean } = {};       
+    selectedNewDepartment: { [key: string]: number } = {};    
+    savingDepartment: { [key: string]: boolean } = {};        
     editingBuildNo: { [key: string]: boolean } = {};
     selectedNewBuildNo: { [key: string]: string } = {};
     savingBuildNo: { [key: string]: boolean } = {};
@@ -101,7 +154,8 @@ export class PortfolioComponent implements OnInit {
     deletingTicket: { [key: string]: boolean } = {};
     showDeleteConfirm: { [key: string]: boolean } = {};
     deleteReason: { [key: string]: string } = {};
-
+    onHoldStatusIds: number[] = [];
+    readyToDeployStatusIds: number[] = [];
     savingBuildDate: { [key: string]: boolean } = {};
     pendingDocFiles: { [buildNo: string]: File | null } = {};
     uploadSuccess: { [buildNo: string]: boolean } = {};
@@ -131,6 +185,7 @@ export class PortfolioComponent implements OnInit {
     selectedDescriptionText: string = '';
     selectedDescriptionTicket: string = '';
 
+     
     openStatusIds: number[] = [];
     pipelineCardsByStatus: Map<string, any[]> = new Map();
     inProgressStatusIds: number[] = [];
@@ -200,36 +255,11 @@ export class PortfolioComponent implements OnInit {
     ngOnInit() {
         this.auth.currentUser$.subscribe(user => {
             if (user) {
-                // Get user roles
-                const roles = this.auth.getUserRoles();
-                const isCEO = roles.includes('CEO');
-                const isSupervisor = roles.includes('Supervisor');
-                const isAdmin = roles.includes('Admin');
-                const isSuperAdmin = roles.includes('SuperAdmin');
-                const isTechnician = roles.includes('Technician'); 
-                // Check if user has management role (Supervisor or Admin)
-                const hasManagementRole = isSupervisor || isAdmin || isSuperAdmin || isTechnician;
-                 
-
-                // CEO should have VIEW ONLY on Portfolio page
-                // Supervisors and Admins have FULL ACCESS
-                if (hasManagementRole) {
-                    // Supervisors and Admins: Full access
-                    this._canEdit = true;
-                    this._canDelete = true;
-                    this._canAssignResource = true;
-                    this._canCreate = true;
-                    this._isViewer = false;
-                } else {
-                    // CEO and Viewers: View only
-                    this._canEdit = false;
-                    this._canDelete = false;
-                    this._canAssignResource = false;
-                    this._canCreate = false;
-                    this._isViewer = true;
-                }
-
-               
+                this._canEdit = this.auth.canEdit;
+                this._canDelete = this.auth.canDelete;
+                this._canAssignResource = this.auth.canAssignResource;
+                this._canCreate = this.auth.canCreate;
+                this._isViewer = this.auth.isViewer;
             } else {
                 this._canEdit = false;
                 this._canDelete = false;
@@ -275,11 +305,17 @@ export class PortfolioComponent implements OnInit {
                 statuses.forEach(status => {
                     const name = status.fieldName?.toLowerCase().trim() || '';
                     const id = status.id;
-                    if (name === 'in production') {
+                    if (name === 'in production' || name === 'solved') {
                         this.inProductionStatusIds.push(id);
                     }
-                    else if (id === 500 || name === 'requirement analysis' || name === 'poc-tostart') {
+                    else if (name.includes('hold') || name.includes('dependency') || name.includes('blocked') || name.includes('awaiting')) {
+                        this.onHoldStatusIds.push(id);
+                    }
+                    else if (id === 500 || name === 'requirement analysis' || name === 'poc-tostart' || name === 'yet to start') {
                         this.openStatusIds.push(id);
+                    }
+                    else if (name.includes('ready to deploy') || name.includes('ready for deployment') || name === 'ready') {   // ← NEW
+                        this.readyToDeployStatusIds.push(id);
                     }
                     else {
                         this.inProgressStatusIds.push(id);
@@ -297,6 +333,8 @@ export class PortfolioComponent implements OnInit {
                             openTickets: 0,
                             inProgress: 0,
                             yetToStart: 0,
+                            onHold: 0,
+                            readyToDeploy: 0,
                             inProduction: 0,
                             overdue: 0,
                             platforms: platforms
@@ -309,15 +347,17 @@ export class PortfolioComponent implements OnInit {
                 });
 
                 entityMap.forEach((entity, entityId) => {
-                    const closedStatusIds = [46, 153]; // Closed, Solved
+                    const closedStatusIds = [46];
                     const entityTickets = tickets.filter(t =>
                         t.entityId === entityId &&
-                        !closedStatusIds.includes(t.statusId ?? 0)  // ← exclude closed/solved
+                        !closedStatusIds.includes(t.statusId ?? 0)
                     );
                     entity.totalTickets = entityTickets.length;
                     entity.inProduction = entityTickets.filter(t => this.inProductionStatusIds.includes(t.statusId ?? 0)).length;
                     entity.openTickets = entityTickets.filter(t => this.openStatusIds.includes(t.statusId ?? 0)).length;
                     entity.inProgress = entityTickets.filter(t => this.inProgressStatusIds.includes(t.statusId ?? 0)).length;
+                    entity.onHold = entityTickets.filter(t => this.onHoldStatusIds.includes(t.statusId ?? 0)).length;  // ← NEW
+                    entity.readyToDeploy = entityTickets.filter(t => this.readyToDeployStatusIds.includes(t.statusId ?? 0)).length;  
                     entity.yetToStart = entity.openTickets;
                 });
 
@@ -336,12 +376,7 @@ export class PortfolioComponent implements OnInit {
                 const enriched = Array.from(entityMap.values())
                     .sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999))
                     .filter(entity => entity.displayOrder !== 0 && entity.displayOrder !== 999);
-                    console.log('📊 Entities before filter:', enriched.map(e => ({
-    name: e.entityName,
-    displayOrder: e.displayOrder,
-    totalTickets: e.totalTickets
-})));
-
+                     
                 this.allEntities = enriched;
                 this.filteredEntities = [...enriched];
                 this.loading = false;
@@ -407,6 +442,73 @@ export class PortfolioComponent implements OnInit {
         }
     }
 
+    renderBcpResourceChart(): void {
+        if (this.bcpChartInstance) {
+            this.bcpChartInstance.destroy();
+            this.bcpChartInstance = null;
+        }
+        if (!this.bcpResourceCanvasRef) return;
+
+        const stats = this.bcpResourceStats;
+        if (!stats.length) return;
+
+        const ctx = this.bcpResourceCanvasRef.nativeElement.getContext('2d');
+        if (!ctx) return;
+
+        const labels = stats.map(r => r.name);
+        const maxDays = Math.max(...stats.map(r => r.overdueDays), 1);
+        const minSlice = maxDays * 0.12; // floor so 0-day resources still get a visible wedge
+
+        const data = stats.map(r => Math.max(r.overdueDays, minSlice));
+        const colors = stats.map(r =>
+            r.overdueDays > 10 ? '#E24B4A' : r.overdueDays > 3 ? '#EF9F27' : '#639922'
+        );
+
+        this.bcpChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: colors,
+                    borderColor: '#fff',
+                    borderWidth: 2,
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '52%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (item) => {
+                                const r = stats[item.dataIndex];
+                                return [
+                                    r.name,
+                                    `⚑ Pending: ${r.rCount}`,
+                                    `↻ In Progress: ${r.aCount}`,
+                                    `✓ Done: ${r.gCount}`,
+                                    `⚠ Overdue: ${r.overdueCount} ticket(s), ${r.overdueDays}d total`
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    ////get bcpChartHeight(): number {
+    ////    return 170;
+    ////}
+    ngOnDestroy(): void {
+        this.bcpResizeObserver?.disconnect();
+        if (this.bcpChartInstance) {
+            this.bcpChartInstance.destroy();
+        }
+    }
     openUpdateIncidentModal(): void {
         this.incidentSearchTerm = '';
         this.incidentSearchResults = [];
@@ -467,13 +569,20 @@ export class PortfolioComponent implements OnInit {
         });
     }
 
+    @HostListener('document:click')
+    onDocumentClick(): void {
+        if (this.bcpDeptDropdownOpen) {
+            this.bcpDeptDropdownOpen = false;
+            this.cdr.detectChanges();
+        }
+    }
+
     selectIncident(ticket: any): void {
         this.selectedIncident = ticket;
         this.cdr.detectChanges();
     }
 
     confirmUpdateIncident(): void {
-        debugger;
         console.log('1️⃣ confirmUpdateIncident called', this.selectedIncident);
         if (!this.selectedIncident) return;
         const ticket = this.selectedIncident;
@@ -481,6 +590,64 @@ export class PortfolioComponent implements OnInit {
             `Are you sure you want to update Incident #${ticket.ticketNo || ticket.id} - "${ticket.title}"?`,
             () => this.activateSelectedIncident()
         );
+    }
+
+    editDepartment(item: any): void {
+        if (!this._canEdit) return;
+        const key = this.getTicketKey(item);
+        this.editingDepartment[key] = true;
+        // Try to preselect the matching department id from allDepartments by name
+        const match = this.allDepartments.find(d => d.fieldName === item.departmentName);
+        this.selectedNewDepartment[key] = match ? match.id : 0;
+        this.cdr.detectChanges();
+    }
+
+    cancelDepartmentEdit(item: any): void {
+        const key = this.getTicketKey(item);
+        this.editingDepartment[key] = false;
+        this.selectedNewDepartment[key] = 0;
+        this.cdr.detectChanges();
+    }
+
+    saveDepartment(item: any): void {
+        const key = this.getTicketKey(item);
+        const newDeptId = this.selectedNewDepartment[key];
+
+        if (!newDeptId) {
+            this.showToast('Please select a department', 'error');
+            return;
+        }
+
+        const deptObj = this.allDepartments.find(d => d.id === newDeptId);
+        if (!deptObj) {
+            this.showToast('Invalid department selected', 'error');
+            return;
+        }
+
+        if (deptObj.fieldName === item.departmentName) {
+            this.cancelDepartmentEdit(item);
+            return;
+        }
+
+        this.savingDepartment[key] = true;
+        this.cdr.detectChanges();
+
+        this.svc.updateTicketDepartment(item.id, newDeptId).subscribe({
+            next: () => {
+                item.departmentName = deptObj.fieldName;
+                this.updateTicketInArrays(item.id, 'departmentName', deptObj.fieldName);
+                this.savingDepartment[key] = false;
+                this.editingDepartment[key] = false;
+                this.showToast('Department updated successfully', 'success');
+                this.cdr.detectChanges();
+            },
+            error: (err: any) => {
+                console.error('Error saving department:', err);
+                this.savingDepartment[key] = false;
+                this.cdr.detectChanges();
+                this.showToast('Failed to update Department: ' + (err.error?.message || err.statusText || 'Unknown error'), 'error');
+            }
+        });
     }
 
     private activateSelectedIncident(): void {
@@ -504,6 +671,40 @@ export class PortfolioComponent implements OnInit {
                 this.cdr.detectChanges();
             }
         });
+    }
+
+    toggleBcpDeptDropdown(): void {
+        this.bcpDeptDropdownOpen = !this.bcpDeptDropdownOpen;
+        this.cdr.detectChanges();
+    }
+
+    //closeBcpDeptDropdown(): void {
+    //    this.bcpDeptDropdownOpen = false;
+    //    this.cdr.detectChanges();
+    //}
+
+    bcpExpandAll(): void {
+        this.bcpFilteredDepts.forEach(d => this.bcpOpenedDepts.add(d.id));
+        this.cdr.detectChanges();
+    }
+
+    bcpCollapseAll(): void {
+        this.bcpOpenedDepts.clear();
+        this.cdr.detectChanges();
+    }
+
+    bcpIsDeptSelectedForExpand(deptId: string): boolean {
+        return this.bcpOpenedDepts.has(deptId);
+    }
+
+    bcpToggleDeptSelection(deptId: string, event: Event): void {
+        event.stopPropagation();
+        if (this.bcpOpenedDepts.has(deptId)) {
+            this.bcpOpenedDepts.delete(deptId);
+        } else {
+            this.bcpOpenedDepts.add(deptId);
+        }
+        this.cdr.detectChanges();
     }
 
 
@@ -543,8 +744,470 @@ export class PortfolioComponent implements OnInit {
         this.cdr.detectChanges();
     }
 
+    // ==================== DEPARTMENT WISE EXCEL EXPORT ====================
+    exportDepartmentWiseExcel(): void {
+        if (!this.selectedEntity) {
+            this.showToast('No entity selected', 'error');
+            return;
+        }
+
+        const entityTickets = this.allTickets.filter(t =>
+            t.entityId === this.selectedEntity?.entityId &&
+            !this.closedStatusIds.includes(t.statusId ?? 0)
+        );
+
+        if (!entityTickets.length) {
+            this.showToast('No data to export', 'error');
+            return;
+        }
+
+        const rows: any[] = [];
+
+        entityTickets.forEach((item: any) => {
+            const statusId = item.statusId ?? (item as any).status_id ?? null;
+            const isInProduction = statusId !== null && this.inProductionStatusIds.includes(statusId);
+
+            // Skip Previous Releases — export only Current + Future
+            if (isInProduction) return;
+
+            const platformName = this.selectedEntity?.platforms
+                ?.find(p => p.allIds?.includes(item.platformId ?? -1) || p.id === item.platformId)?.name || '';
+
+            rows.push({
+                'Platform': platformName,
+                'Department/Module': (item as any).departmentName || (item as any).departmentname || 'General',
+                'Type': item.typeName || '',
+                'Key Deliverables': '',
+                'Deliverables': this.stripHtml(item.description || item.title || ''),
+                'Priority': (item as any).priorityName || '',
+                'Target Date': item.scheduleBuildDate || item.plannedDate || '',
+                'Actual Release Date': '',
+                'Resource': this.getUserDisplayName(this.resolveAssignedUserId(item)) || '',
+                'Status': this.getDisplayStatusName(item),
+                'Remarks': ''
+            });
+        });
+
+        if (!rows.length) {
+            this.showToast('No Current/Future release items found to export', 'error');
+            return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+        const fileName = `${this.selectedEntity?.entityName || 'Portfolio'}_DeptWise_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+        this.showToast('Excel exported successfully', 'success');
+    }
+    // ==================== DOWNLOAD + VIEW (ENTITY-WIDE, ONE CLICK) ====================
+    // ==================== VIEW BCP DASHBOARD (ENTITY-WIDE, ONE CLICK) ====================
+    viewEntityDashboard(entity: PortfolioSummaryModel, event: Event): void {
+        event.stopPropagation();
+
+        if (!entity?.entityId) {
+            this.showToast('Invalid entity', 'error');
+            return;
+        }
+
+        const entityTickets = this.allTickets.filter(t =>
+            t.entityId === entity.entityId &&
+            !this.closedStatusIds.includes(t.statusId ?? 0)
+        );
+
+        if (!entityTickets.length) {
+            this.showToast('No data available for this entity', 'error');
+            return;
+        }
+
+        const grouped: { [dept: string]: any[] } = {};
+        const deptOrder: string[] = [];
+
+        entityTickets.forEach((item: any) => {
+            const dept = item.departmentName || item.departmentname || 'General';
+            if (!grouped[dept]) { grouped[dept] = []; deptOrder.push(dept); }
+
+            const statusDisplay = this.getDisplayStatusName(item);
+            const targetDateRaw = item.scheduleBuildDate || item.plannedDate || '';
+            const statusId = item.statusId ?? (item as any).status_id ?? -1;
+
+            let cls = this.bcpClassifyByStatusId(statusId);
+
+            // Safety net: "Yet to Start" must always land in the pending (red) bucket,
+            // regardless of which underlying statusId happens to produce that label.
+            if (statusDisplay === 'Yet to Start') {
+                cls = 'r';
+            }
+
+            grouped[dept].push({
+                k: '',
+                n: this.stripHtml(item.description || item.title || '').substring(0, 130),
+                c: cls,
+                s: statusDisplay || 'Not started',
+                d: targetDateRaw ? this.bcpExcelDateToStr(new Date(targetDateRaw)) : '',
+                res: this.getUserDisplayName(this.resolveAssignedUserId(item)) || 'Unassigned'
+            });
+        });
+        this.bcpDepts = deptOrder.map(dept => {
+            const items = grouped[dept];
+            const g = items.filter(i => i.c === 'g').length;
+            const a = items.filter(i => i.c === 'a').length;
+            const r = items.filter(i => i.c === 'r').length;
+            const color = this.bcpColorForDept(dept);
+            return { id: dept, ic: this.bcpIconForDept(dept), ib: color.ib, ic2: color.ic2, t: items.length, g, a, r, items };
+        });
+
+        this.bcpFilter = 'a';
+        this.bcpSubStatusFilter = null;
+        this.bcpSearchTerm = '';
+        this.bcpDeptDropdownOpen = false;
+
+        this.bcpOpenedDepts.clear();
+        this.bcpFilteredDepts.forEach(d => this.bcpOpenedDepts.add(d.id));   // expand all depts with 'In Progress' items
+
+        this.bcpEntityName = entity.entityName || 'Portfolio';
+        this.bcpFileName = `${entity.entityName} (live)`;
+
+        this.bcpLastUploadedDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        this.bcpModalMinimized = false;
+        this.showBCPModal = true;
+
+        this.cdr.detectChanges();
+    }
+    triggerBCPUpload(): void {
+        const input = document.getElementById('bcpFileInput') as HTMLInputElement;
+        if (input) { input.value = ''; input.click(); }
+    }
+
+    onBCPFileSelected(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        if (!input.files?.length) return;
+        const file = input.files[0];
+
+        if (!/\.(xlsx|xls)$/i.test(file.name)) {
+            this.showToast('Please upload an .xlsx or .xls file', 'error');
+            input.value = '';
+            return;
+        }
+
+        this.bcpFileName = file.name;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const wb = XLSX.read(e.target?.result, { type: 'array', cellDates: true });
+                this.bcpDepts = this.parseBCPExcel(wb);
+                this.bcpEntityName = this.selectedEntity?.entityName || 'Portfolio';
+                this.bcpOpenedDepts.clear();
+                this.bcpFilter = 'all';
+                this.bcpSearchTerm = '';
+                this.bcpDeptDropdownOpen = false;   // ADD THIS
+                this.bcpLastUploadedDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                this.bcpModalMinimized = false;   // ← FIX
+                this.showBCPModal = true;
+                this.showToast('BCP data loaded from ' + file.name, 'success');
+            } catch (err: any) {
+                console.error('BCP parse error:', err);
+                this.showToast('Error reading file: ' + (err?.message || 'Unknown error'), 'error');
+            }
+            this.cdr.detectChanges();
+        };
+        reader.onerror = () => this.showToast('Failed to read file.', 'error');
+        reader.readAsArrayBuffer(file);
+
+        input.value = '';
+    }
+
+    private bcpColorForDept(name: string): { ib: string; ic2: string } {
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+        return this.bcpColorPalette[hash % this.bcpColorPalette.length];
+    }
+
+    private bcpIconForDept(name: string): string {
+        const words = name.trim().split(/[\s/_-]+/).filter(Boolean);
+        if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+        return name.trim().substring(0, 2).toUpperCase();
+    }
+
+    private bcpExcelDateToStr(val: any): string {
+        const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        if (!val && val !== 0) return '';
+        if (typeof val === 'number') {
+            try {
+                const d = (XLSX as any).SSF.parse_date_code(val);
+                if (d) return `${String(d.d).padStart(2, '0')} ${M[d.m - 1]} ${d.y}`;
+            } catch { }
+            return '';
+        }
+        if (val instanceof Date && !isNaN(val.getTime())) {
+            return `${String(val.getDate()).padStart(2, '0')} ${M[val.getMonth()]} ${val.getFullYear()}`;
+        }
+        if (typeof val === 'string' && val.trim()) {
+            const d = new Date(val.trim());
+            if (!isNaN(d.getTime())) return `${String(d.getDate()).padStart(2, '0')} ${M[d.getMonth()]} ${d.getFullYear()}`;
+            return val.trim();
+        }
+        return '';
+    }
+    bcpBreakdownFor(cls: 'g' | 'a' | 'r'): { status: string; count: number }[] {
+        const counts = new Map<string, number>();
+        this.bcpDepts.forEach(d => {
+            d.items.forEach((i: any) => {
+                if (i.c === cls) {
+                    counts.set(i.s, (counts.get(i.s) || 0) + 1);
+                }
+            });
+        });
+        return Array.from(counts.entries())
+            .map(([status, count]) => ({ status, count }))
+            .sort((a, b) => b.count - a.count);
+    }
+
+    //private bcpClassifyStatus(s: string): 'g' | 'a' | 'r' {
+    //    s = (s || '').toString().toLowerCase();
+    //    if (s.includes('in production') || s.includes('uat testing completed') || s.includes('ready to deploy') || s.includes('solved')) return 'g';
+    //    if (s.includes('qa in progress') || s.includes('testing in progress') || s.includes('development in progress')) return 'a';
+    //    if (s.includes('dependency') || s.includes('yet to start') || s.includes('requirement') || s === '' || s === 'nan') return 'r';
+    //    return 'a';
+    //}
+    private bcpClassifyStatus(s: string): 'g' | 'a' | 'r' {
+        s = (s || '').toString().toLowerCase().trim();
+
+        // Done / on track - exact matches
+        if (s === 'in production' || s === 'solved' || s.includes('ready to deploy') || s.includes('ready for deployment')) {   // ← UPDATED
+            return 'g';
+        }
+
+        // In progress - use includes() for partial matching
+        // This will match: "testing", "testing in progress", "testing inprogress", 
+        // "in progress", "inprogress", "Testing Inprogress", "Inprogress", etc.
+        if (s.includes('testing') ||
+            s.includes('in progress') ||
+            s === 'inprogress') {
+            return 'a';
+        }
+
+        // Everything else → Pending / blocked
+        return 'r';
+    }
+
+    private parseBCPExcel(wb: any): any[] {
+        const sn = wb.SheetNames.find((n: string) => /sheet1|deliverable/i.test(n)) || wb.SheetNames[0];
+        const rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '', raw: true });
+        if (!rows.length) throw new Error('No data found in the sheet.');
+
+        const keys = Object.keys(rows[0]);
+        const find = (...candidates: string[]) =>
+            keys.find(k => candidates.some(c => k.toLowerCase().includes(c.toLowerCase()))) || '';
+
+        const dC = find('Department', 'Dept', 'Module');
+        //const dvC = find('Deliverables', 'Deliverable');
+        const dvC = keys.find(k => k.trim().toLowerCase() === 'deliverables')
+            || keys.find(k => k.trim().toLowerCase() === 'deliverable')
+            || keys.find(k => k.toLowerCase().includes('deliverable') && !k.toLowerCase().includes('key'))
+            || '';
+        const kC = find('Key Deliverable');
+        const stC = find('Status');
+        const dtCs = keys.filter(k => k.toLowerCase().includes('target date'));
+        const resC = find('Resource', 'Assigned To', 'Owner', 'Responsible', 'Assignee'); // NEW
+
+        if (!dC || !dvC) throw new Error('Cannot find Department or Deliverables columns in the sheet.');
+
+        const grouped: { [dept: string]: any[] } = {};
+        const deptOrder: string[] = [];
+
+        rows.forEach(row => {
+            const deptRaw = (row[dC] || '').toString().trim();
+            const dept = deptRaw || 'Unassigned';
+            const deliv = (row[dvC] || '').toString().replace(/\n/g, ' ').trim();
+            if (!deliv || deliv.length < 3) return;
+
+            if (!grouped[dept]) { grouped[dept] = []; deptOrder.push(dept); }
+
+            const keyRaw = kC ? (row[kC] || '').toString().replace(/\n/g, ' ').trim() : '';
+            const res = resC ? ((row[resC] || '').toString().trim() || 'Unassigned') : 'Unassigned'; // NEW
+
+
+            let dv = '';
+            for (const dk of dtCs) { const v = this.bcpExcelDateToStr(row[dk]); if (v) { dv = v; break; } }
+            const st = (row[stC] || '').toString().trim();
+
+            grouped[dept].push({
+                k: keyRaw === 'nan' ? '' : keyRaw,
+                n: deliv.substring(0, 130),
+                c: this.bcpClassifyStatus(st),
+                s: st || 'Not started',
+                d: dv,
+                res 
+            });
+        });
+
+        const result = deptOrder.map(dept => {
+            const items = grouped[dept];
+            const g = items.filter(i => i.c === 'g').length;
+            const a = items.filter(i => i.c === 'a').length;
+            const r = items.filter(i => i.c === 'r').length;
+            const color = this.bcpColorForDept(dept);
+            return { id: dept, ic: this.bcpIconForDept(dept), ib: color.ib, ic2: color.ic2, t: items.length, g, a, r, items };
+        });
+
+        if (!result.length) throw new Error('No matching department data found.');
+        return result;
+    }
+    minimizeBCPModal(): void {
+        this.bcpModalMinimized = true;
+        this.cdr.detectChanges();
+    }
+
+    restoreBCPModal(): void {
+        this.bcpModalMinimized = false;
+        this.cdr.detectChanges();
+    }
+
+    closeBCPModal(): void {
+        this.showBCPModal = false;
+        this.bcpModalMinimized = false;   // reset so next open starts un-minimized
+        this.cdr.detectChanges();
+        this.bcpDeptDropdownOpen = false;  
+    }
+
+    bcpSetFilter(f: 'all' | 'g' | 'a' | 'r'): void {
+        this.bcpFilter = f;
+        this.bcpSubStatusFilter = null;   // NEW — clear any drill-down when switching buckets
+        this.cdr.detectChanges();
+        this.renderBcpResourceChart();
+    }
+    bcpSetSubStatusFilter(status: string): void {
+        this.bcpSubStatusFilter = this.bcpSubStatusFilter === status ? null : status;
+        this.cdr.detectChanges();
+        this.renderBcpResourceChart();
+    }
+    get bcpSubStatusOptions(): { status: string; count: number }[] {
+        if (this.bcpFilter !== 'a' && this.bcpFilter !== 'r' && this.bcpFilter !== 'g') return [];   // ← UPDATED
+        return this.bcpBreakdownFor(this.bcpFilter);
+    }
+
+    bcpToggleDept(deptId: string): void {
+        if (this.bcpOpenedDepts.has(deptId)) this.bcpOpenedDepts.delete(deptId);
+        else this.bcpOpenedDepts.add(deptId);
+        this.cdr.detectChanges();
+    }
+
+    bcpIsDeptOpen(deptId: string): boolean {
+        return this.bcpOpenedDepts.has(deptId) || !!this.bcpSearchTerm.trim();
+    }
+
+    bcpPrimary(d: any): 'g' | 'a' | 'r' {
+        if (d.r > d.a && d.r > d.g) return 'r';
+        if (d.g >= d.a && d.g > 0 && d.g >= d.r) return 'g';
+        return 'a';
+    }
+
+    get bcpFilteredDepts(): any[] {
+        const q = (this.bcpSearchTerm || '').toLowerCase().trim();
+
+        let depts = this.bcpDepts.map(d => {
+            let items = this.bcpFilter === 'all'
+                ? d.items
+                : d.items.filter((i: any) => i.c === this.bcpFilter);
+
+            if (this.bcpSubStatusFilter) {                                    // NEW
+                items = items.filter((i: any) => i.s === this.bcpSubStatusFilter);
+            }
+
+            if (!items.length) return null;
+            const g = items.filter((i: any) => i.c === 'g').length;
+            const a = items.filter((i: any) => i.c === 'a').length;
+            const r = items.filter((i: any) => i.c === 'r').length;
+            return { ...d, items, t: items.length, g, a, r };
+        }).filter(Boolean) as any[];
+
+        if (q) {
+            depts = depts.map(d => {
+                if (d.id.toLowerCase().includes(q)) return d;
+                const items = d.items.filter((i: any) =>
+                    i.n.toLowerCase().includes(q) || i.k.toLowerCase().includes(q) || i.s.toLowerCase().includes(q)
+                );
+                if (!items.length) return null;
+                const g = items.filter((i: any) => i.c === 'g').length;
+                const a = items.filter((i: any) => i.c === 'a').length;
+                const r = items.filter((i: any) => i.c === 'r').length;
+                return { ...d, items, t: items.length, g, a, r };
+            }).filter(Boolean);
+        }
+
+        return depts;
+    }
+    get bcpTotals(): { tot: number; g: number; a: number; r: number } {
+        let tot = 0, g = 0, a = 0, r = 0;
+        this.bcpDepts.forEach(d => { tot += d.t; g += d.g; a += d.a; r += d.r; });
+        return { tot, g, a, r };
+    }
+
+    bcpPct(n: number): number {
+        const tot = this.bcpTotals.tot;
+        return tot ? Math.round(n / tot * 100) : 0;
+    }
+
+    bcpIsOverdue(dateStr: string, statusClass: string): boolean {
+        if (!dateStr || statusClass === 'g') return false;
+        const p = dateStr.split(' ');
+        if (p.length !== 3) return false;
+        const M: any = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+        return new Date(+p[2], M[p[1]], +p[0]) < new Date();
+    }
+    private bcpDateStrToDate(dateStr: string): Date | null {
+        if (!dateStr) return null;
+        const p = dateStr.split(' ');
+        if (p.length !== 3) return null;
+        const M: any = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+        return new Date(+p[2], M[p[1]], +p[0]);
+    }
+
+    private bcpOverdueDays(dateStr: string, statusClass: string): number {
+        if (!dateStr || statusClass === 'g') return 0;
+        const d = this.bcpDateStrToDate(dateStr);
+        if (!d) return 0;
+        const diff = Math.floor((new Date().getTime() - d.getTime()) / 86400000);
+        return diff > 0 ? diff : 0;
+    }
+
+    get bcpResourceStats(): { name: string; pending: number; overdueDays: number; total: number; gCount: number; aCount: number; rCount: number; overdueCount: number }[] {
+        const map = new Map<string, { pending: number; overdueDays: number; total: number; gCount: number; aCount: number; rCount: number; overdueCount: number }>();
+        this.bcpFilteredDepts.forEach(d => {
+            d.items.forEach((i: any) => {
+                const name = i.res || 'Unassigned';
+                if (!map.has(name)) map.set(name, { pending: 0, overdueDays: 0, total: 0, gCount: 0, aCount: 0, rCount: 0, overdueCount: 0 });
+                const entry = map.get(name)!;
+                entry.total++;
+                if (i.c !== 'g') entry.pending++;
+
+                if (i.c === 'g') entry.gCount++;
+                else if (i.c === 'a') entry.aCount++;
+                else if (i.c === 'r') entry.rCount++;
+
+                const od = this.bcpOverdueDays(i.d, i.c);
+                entry.overdueDays += od;
+                if (od > 0) entry.overdueCount++;   // ← ticket actually past its target date
+            });
+        });
+        return Array.from(map.entries())
+            .map(([name, v]) => ({ name, ...v }))
+            .sort((a, b) => b.overdueDays - a.overdueDays);
+    }
+
+    get bcpTopResource(): { name: string; overdueDays: number } | null {
+        const stats = this.bcpResourceStats;
+        return stats.length && stats[0].overdueDays > 0 ? stats[0] : null;
+    }
+
+  
+
     saveNewTicket(): void {
-        debugger;
         if (!this.newTicket.title?.trim()) {
             this.showToast('Title is required', 'error');
             return;
@@ -609,12 +1272,9 @@ export class PortfolioComponent implements OnInit {
     openAuditLogModal(ticket: any, event: Event): void {
         event.stopPropagation(); // Prevent triggering row click
 
-        // Check if user is Supervisor
-        const roles = this.auth.getUserRoles();
-        const isSupervisor = roles.includes('Supervisor') || roles.includes('Admin');
-
-        if (!isSupervisor) {
-            this.showToast('Only Supervisors can view audit logs', 'error');
+        // Check if user has admin-level access
+        if (!this.auth.canManageUsers) {
+            this.showToast('Only authorized users can view audit logs', 'error');
             return;
         }
 
@@ -638,7 +1298,6 @@ export class PortfolioComponent implements OnInit {
             }
         });
     }
-
     closeAuditLogModal(): void {
         this.showAuditLogModal = false;
         this.auditLogs = [];
@@ -655,6 +1314,7 @@ export class PortfolioComponent implements OnInit {
             'BUILD_DATE_CHANGED': 'badge-warning',
             'ASSIGNED_USER_CHANGED': 'badge-secondary',
             'DEACTIVATED': 'badge-danger',
+            'DEPARTMENT_CHANGED': 'badge-info',   
             'ACTIVATED': 'badge-success'
         };
         return actionMap[action] || 'badge-secondary';
@@ -669,6 +1329,7 @@ export class PortfolioComponent implements OnInit {
             'BUILD_DATE_CHANGED': '📅',
             'ASSIGNED_USER_CHANGED': '👤',
             'DEACTIVATED': '🗑️',
+            'DEPARTMENT_CHANGED': '🏢',  
             'ACTIVATED': '✅'
         };
         return iconMap[action] || '📝';
@@ -982,37 +1643,7 @@ export class PortfolioComponent implements OnInit {
             }
         });
     }
-    //private refreshCurrentPlatformData(): void {
-    //    if (!this.selectedPlatform || !this.selectedEntity) return;
-
-    //    const filter = { entityId: this.selectedEntity.entityId };
-    //    this.svc.getTickets(filter).subscribe({
-    //        next: (tickets) => {
-    //            const platformTickets = tickets.filter(
-    //                t => t.platformId === this.selectedPlatform?.id
-    //            );
-
-    //            // Log every date field on every ticket name variant
-    //            platformTickets.forEach(t => {
-    //                console.log('🎫 Ticket', t.id, {
-    //                    plannedDate: (t as any).plannedDate,
-    //                    estimationEndDate: (t as any).estimationEndDate,
-    //                    estimation_end_date: (t as any).estimation_end_date,
-    //                    scheduleBuildDate: (t as any).scheduleBuildDate,
-    //                    schedule_build_date: (t as any).schedule_build_date,
-    //                    scheduleBuildNo: (t as any).scheduleBuildNo,
-    //                    schedule_build_no: (t as any).schedule_build_no,
-    //                });
-    //            });
-
-    //            this.allTickets = tickets;
-    //            this.groupPlatformBuildWiseData(platformTickets);
-    //            this.groupPlatformDataByDepartment(platformTickets);
-    //            this.cdr.detectChanges();
-    //        },
-    //        error: (err) => console.error('Error refreshing data:', err)
-    //    });
-    //}
+   
     private refreshCurrentPlatformData(): void {
     if (!this.selectedPlatform || !this.selectedEntity) return;
 
@@ -1086,46 +1717,33 @@ export class PortfolioComponent implements OnInit {
     }
     // ==================== PIPELINE STAGES - DYNAMIC BUILDER ====================
     buildPipelineStages(statuses: any[]): void {
-        // Define stage configuration using dynamic matching
-        // This uses keyword matching which can be updated without code changes
-        // Alternatively, you can add a 'stage' field to your master_config table
-
         const stageConfig = [
-            {
-                label: 'Analysis / FD',
-                keywords: ['analysis', 'fd', 'poc', 'yet to start', 'requirement'],
-                color: '#9a5500'
-            },
-            {
-                label: 'Development',
-                keywords: ['dev', 'development'],
-                color: '#5e3a9a'
-            },
-            {
-                label: 'Testing',
-                keywords: ['test', 'testing', 'demo'],
-                color: '#1a6e63'
-            },
-            {
-                label: 'Ready / Blocked',
-                keywords: ['ready', 'hold', 'dependency', 'awaiting', 'blocked'],
-                color: '#b85c00'
-            }
+            { label: 'Analysis / FD', keywords: ['analysis', 'fd', 'poc', 'yet to start', 'requirement'], color: '#9a5500' },
+            { label: 'Development', keywords: ['dev', 'development'], color: '#5e3a9a' },
+            { label: 'Testing', keywords: ['test', 'testing', 'demo'], color: '#1a6e63' },
+            { label: 'Ready / Blocked', keywords: ['ready', 'hold', 'dependency', 'awaiting', 'blocked'], color: '#b85c00' }
         ];
+
+        const assigned = new Set<string>(); // prevents a status being claimed twice
 
         this.pipelineStages = stageConfig.map(stage => ({
             label: stage.label,
             color: stage.color,
             statuses: statuses
                 .filter(s => {
-                    const statusName = s.fieldName?.toLowerCase() || '';
-                    return stage.keywords.some(keyword => statusName.includes(keyword));
+                    const name = s.fieldName?.toLowerCase() || '';
+                    if (assigned.has(s.fieldName)) return false; // already claimed by an earlier stage
+                    const matches = stage.keywords.some(k => name.includes(k));
+                    if (matches) assigned.add(s.fieldName);
+                    return matches;
                 })
                 .map(s => s.fieldName)
         })).filter(stage => stage.statuses.length > 0);
 
+        // anything left over doesn't belong to any column — log it so you can see what's missing
+        const unmatched = statuses.filter(s => !assigned.has(s.fieldName));
+        console.log('⚠️ Statuses with no pipeline column:', unmatched.map(s => s.fieldName));
     }
-
     // ==================== STATUS EDITING METHODS ====================
     getStatusKey(item: any): string {
         return `${item.id}_${item.ticketId || ''}`;
@@ -1245,6 +1863,9 @@ export class PortfolioComponent implements OnInit {
 
     // ==================== EXISTING METHODS (KEEP AS IS) ====================
     private resetEntityState(): void {
+        this.editingDepartment = {};        
+        this.selectedNewDepartment = {};    
+        this.savingDepartment = {};  
         this.editingBuildNo = {};
         this.selectedNewBuildNo = {};
         this.savingBuildNo = {};
@@ -1303,6 +1924,9 @@ export class PortfolioComponent implements OnInit {
         return `${year}-${month}-${day}`;
     }
     private resetPlatformState(): void {
+        this.editingDepartment = {};       
+        this.selectedNewDepartment = {};   
+        this.savingDepartment = {}; 
         this.editingBuildNo = {};
         this.selectedNewBuildNo = {};
         this.savingBuildNo = {};
@@ -1422,48 +2046,55 @@ export class PortfolioComponent implements OnInit {
     // ==================== PLATFORM METHODS ====================
     getPlatformTicketCountForEntity(platformId: number, entityId: number | undefined): number {
         if (!entityId) return 0;
+        const platform = this.allEntities
+            .find(e => e.entityId === entityId)?.platforms
+            ?.find(p => p.id === platformId);
+        const allIds = platform?.allIds ?? [platformId];
         return this.allTickets.filter(t =>
             t.entityId === entityId &&
-            t.platformId === platformId &&
+            allIds.includes(t.platformId ?? -1) &&
             !this.closedStatusIds.includes(t.statusId ?? 0)
         ).length;
     }
 
     getPlatformTicketCount(platformId: number): number {
+        const allIds = this.selectedPlatform?.allIds ?? [platformId];
         return this.allTickets.filter(t =>
             t.entityId === this.selectedEntity?.entityId &&
-            t.platformId === platformId &&
+            allIds.includes(t.platformId ?? -1) &&
             !this.closedStatusIds.includes(t.statusId ?? 0)
         ).length;
     }
 
     getPlatformOpenTickets(platformId: number): number {
+        const allIds = this.selectedPlatform?.allIds ?? [platformId];
         return this.allTickets.filter(t =>
             t.entityId === this.selectedEntity?.entityId &&
-            t.platformId === platformId &&
+            allIds.includes(t.platformId ?? -1) &&
             !this.closedStatusIds.includes(t.statusId ?? 0) &&
             t.statusId !== undefined && this.openStatusIds.includes(t.statusId)
         ).length;
     }
 
     getPlatformInProgressTickets(platformId: number): number {
+        const allIds = this.selectedPlatform?.allIds ?? [platformId];
         return this.allTickets.filter(t =>
             t.entityId === this.selectedEntity?.entityId &&
-            t.platformId === platformId &&
+            allIds.includes(t.platformId ?? -1) &&
             !this.closedStatusIds.includes(t.statusId ?? 0) &&
             t.statusId !== undefined && this.inProgressStatusIds.includes(t.statusId)
         ).length;
     }
 
     getPlatformInProductionTickets(platformId: number): number {
+        const allIds = this.selectedPlatform?.allIds ?? [platformId];
         return this.allTickets.filter(t =>
             t.entityId === this.selectedEntity?.entityId &&
-            t.platformId === platformId &&
+            allIds.includes(t.platformId ?? -1) &&
             !this.closedStatusIds.includes(t.statusId ?? 0) &&
             t.statusId !== undefined && this.inProductionStatusIds.includes(t.statusId)
         ).length;
     }
-
     applyPlatformFilter(platformName: string): void {
         if (!this.selectedEntity) {
             console.log('No selected entity, cannot apply platform filter');
@@ -1518,7 +2149,6 @@ export class PortfolioComponent implements OnInit {
         const platformTickets = this.allTickets.filter(
             t => t.entityId === resolvedEntity.entityId && resolvedPlatform.allIds?.includes(t.platformId)
         );
-        debugger;
         const target = this.allTickets.find((t: any) => t.id === 2026045226);
         console.log('🎯 Target ticket found:', target);
         console.log('🎯 Target entityId:', target?.entityId, '=== resolvedEntity:', resolvedEntity.entityId);
@@ -1555,42 +2185,44 @@ export class PortfolioComponent implements OnInit {
         this.router.navigate([], { relativeTo: this.route, queryParams: {}, queryParamsHandling: '' });
         this.cdr.detectChanges();
     }
-
     groupPlatformDataByDepartment(tickets: any[]): void {
         const buildMap = (items: any[]) => {
             const map = new Map();
-            items.forEach(item => {
-                const dept = item.departmentname || item.departmentName || 'General';
-                if (!map.has(dept)) {
-                    map.set(dept, {
-                        departmentName: dept,
-                        totalTickets: 0,
-                        functionalCount: 0,
-                        technicalCount: 0,
-                        testingCount: 0,
-                        deploymentCount: 0,
-                        inProduction: 0,
-                        releases: []
-                    });
-                }
-                const d = map.get(dept);
-                d.totalTickets += 1;
-                d.functionalCount += item.functionalCount || 0;
-                d.technicalCount += item.technicalCount || 0;
-                d.testingCount += item.testingCount || 0;
-                d.deploymentCount += item.deploymentCount || 0;
-                d.inProduction += item.inProduction || 0;
-                if (item.scheduleBuildNo || item.title) {
-                    d.releases.push({
-                        ...item,
-                        scheduleBuildNo: item.scheduleBuildNo,
-                        scheduleBuildDate: item.scheduleBuildDate,
-                        description: item.description,
-                        title: item.title,
-                        statusName: item.statusName
-                    });
-                }
-            });
+            items
+                .filter(item => !this.closedStatusIds.includes(item.statusId ?? 0))  // ← add this
+                .forEach(item => {
+                    const dept = item.departmentname || item.departmentName || 'General';
+                    if (!map.has(dept)) {
+                        map.set(dept, {
+                            departmentName: dept,
+                            totalTickets: 0,
+                            functionalCount: 0,
+                            technicalCount: 0,
+                            testingCount: 0,
+                            deploymentCount: 0,
+                            inProduction: 0,
+                            releases: []
+                        });
+                    }
+                    const d = map.get(dept);
+                    d.totalTickets += 1;
+                    d.functionalCount += item.functionalCount || 0;
+                    d.technicalCount += item.technicalCount || 0;
+                    d.testingCount += item.testingCount || 0;
+                    d.deploymentCount += item.deploymentCount || 0;
+                    d.inProduction += item.inProduction || 0;
+                    if (item.scheduleBuildNo || item.title) {
+                        d.releases.push({
+                            ...item,
+                            scheduleBuildNo: item.scheduleBuildNo,
+                            scheduleBuildDate: item.scheduleBuildDate,
+                            description: item.description,
+                            title: item.title,
+                            statusName: item.statusName,
+                            assignedUserId: this.resolveAssignedUserId(item)
+                        });
+                    }
+                });
             return map;
         };
         const allTicketsMap = buildMap(tickets);
@@ -1598,6 +2230,10 @@ export class PortfolioComponent implements OnInit {
         if (allTicketsMap.size > 0) {
             const allData = Array.from(allTicketsMap.values());
             const filteredData = allData.filter(d => d.totalTickets > 0);
+            console.log('🔵 Department totals:', filteredData.map(d => ({ dept: d.departmentName, count: d.totalTickets })));
+            console.log('🔵 Sum across departments:', filteredData.reduce((sum, d) => sum + d.totalTickets, 0));
+            console.log('🔵 General dept ticket count:', filteredData.find(d => d.departmentName === 'General')?.totalTickets ?? 0);
+            console.log('🔵 Visible (non-General) sum:', filteredData.filter(d => d.departmentName !== 'General').reduce((s, d) => s + d.totalTickets, 0));
             if (filteredData.length > 0) {
                 this.platformGroupedData.push({
                     title: `${this.selectedPlatform?.name || 'All'} Tickets`,
@@ -1806,15 +2442,8 @@ export class PortfolioComponent implements OnInit {
         const currentBuildMap = new Map<string, any>();
         const futureReleaseMap = new Map<string, any>();
         const previousBuildMap = new Map<string, any>();
-        debugger;
         tickets.forEach((item: any) => {
-            console.log('🔍 Ticket:', item.id, {
-                estimationEndDate: item.estimationEndDate,
-                estimation_end_date: item.estimation_end_date,
-                PlannedDate: item.PlannedDate,
-                scheduleBuildDate: item.scheduleBuildDate,
-                ScheduleBuildDate: item.ScheduleBuildDate
-            });
+            
             // ✅ Handle all possible field name variants from API
             const buildNo = item.scheduleBuildNo ?? item.schedule_build_no ?? null;
             // Make sure you're mapping estimationEndDate to plannedDate
@@ -1845,7 +2474,6 @@ export class PortfolioComponent implements OnInit {
                 buildNo,
                 assignedUserId: this.getAssignedUserId(item.assigned_users ?? item.assignedUsers)
             };
-
             if (hasBuildNo && !isInProduction) {
                 if (!currentBuildMap.has(buildNo)) {
                     currentBuildMap.set(buildNo, { buildNo, buildDate: scheduleBuildDate, items: [] });
@@ -1858,8 +2486,8 @@ export class PortfolioComponent implements OnInit {
                 }
                 futureReleaseMap.get(key)?.items.push({
                     ...ticketEntry,
-                    id: item.id,          // ← explicitly set
-                    ticketId: item.id,    // ← explicitly set
+                    id: item.id,
+                    ticketId: item.id,
                     statusName: statusName,
                     buildNo: 'Future Release',
                     plannedDate,
@@ -1869,8 +2497,18 @@ export class PortfolioComponent implements OnInit {
                 if (!previousBuildMap.has(buildNo)) {
                     previousBuildMap.set(buildNo, { buildNo, buildDate: scheduleBuildDate, items: [] });
                 }
+
+
                 previousBuildMap.get(buildNo)?.items.push(ticketEntry);
+            } else {
+                // ✅ NEW: isInProduction (e.g. Solved) but no build number yet
+                const key = 'No Build Assigned';
+                if (!previousBuildMap.has(key)) {
+                    previousBuildMap.set(key, { buildNo: 'No Build Assigned', buildDate: null, items: [] });
+                }
+                previousBuildMap.get(key)?.items.push(ticketEntry);
             }
+      
         });
 
         this.platformCurrentBuildData = { items: [] };
@@ -1966,11 +2604,21 @@ export class PortfolioComponent implements OnInit {
             return;
         }
         this.pipelineLoading = true;
-        const filter = { entityId: this.selectedEntity.entityId, typeName: 'CR' };
+        const filter = { entityId: this.selectedEntity.entityId };
         this.svc.getTickets(filter).subscribe({
             next: (tickets) => {
-                const platformTickets = tickets.filter(t => this.selectedPlatform?.allIds?.includes(t.platformId));
-                //                                                                                              ^ added this closing paren
+                console.log('🔍 Sample ticket typeNames:', [...new Set(tickets.map(t => t.typeName))]);
+                const platformTickets = tickets.filter(t =>
+                    this.selectedPlatform?.allIds?.includes(t.platformId) &&
+                    t.typeName === 'Change Request' &&
+                    !this.closedStatusIds.includes(t.statusId ?? 0)
+                );
+                console.log('🔍 After platform+CR+status filter:', platformTickets.length);
+                console.log('🕵️ null-typeName tickets:', tickets.filter(t =>
+                    this.selectedPlatform?.allIds?.includes(t.platformId) &&
+                    t.typeName == null &&
+                    !this.closedStatusIds.includes(t.statusId ?? 0)
+                ).map(t => ({ id: t.id, typeId: t.typeId, statusName: t.statusName })));
                 this.pipelineTickets = platformTickets;
                 this.filteredPipelineTickets = [...platformTickets];
                 this.pipelineLoading = false;
@@ -2016,11 +2664,14 @@ export class PortfolioComponent implements OnInit {
             const platformTickets = this.allTickets.filter(t =>
                 t.entityId === this.selectedEntity?.entityId &&
                 this.selectedPlatform.allIds?.includes(t.platformId)
+                
             );
+            console.log('allIds:', this.selectedPlatform.allIds);
             if (this.selectedView === 'build') {
                 this.groupPlatformBuildWiseData(platformTickets);
                 this.setDefaultExpandedSection();
             } else if (this.selectedView === 'department') {
+                console.log('🔵 platformTickets count going into department grouping:', platformTickets.length);
                 this.groupPlatformDataByDepartment(platformTickets);
             } else if (this.selectedView === 'pipeline') {
                 this.loadPipelineData();
@@ -2774,6 +3425,16 @@ export class PortfolioComponent implements OnInit {
 
         return forkJoin(calls).pipe(map(() => undefined));
     }
+    getDisplayStatusName(item: any): string {
+        if (item.statusName === 'Requirement Analysis') {
+            return 'Yet to Start';
+        }
+        if (item.typeId === 51 && item.statusName === 'In Production') {
+            return 'Solved';
+        }
+        return item.statusName || '—';
+    }
+
     onRNTicketImageSelected(event: Event, item: any): void {
         const input = event.target as HTMLInputElement;
         if (!input.files?.length) return;
@@ -2807,7 +3468,42 @@ export class PortfolioComponent implements OnInit {
         }
     }
 
-     
+    private resolveAssignedUserId(item: any): number {
+        const flat = item.assignedUserId ?? item.assigned_user_id ?? item.AssignedUserId;
+        if (typeof flat === 'number' && flat > 0) return flat;
+        if (typeof flat === 'string' && flat.trim() && !isNaN(Number(flat))) return Number(flat);
+        return this.getAssignedUserId(item.assigned_users ?? item.assignedUsers ?? item.assigned_to ?? item.assignedTo);
+    }
+    bcpResColor(name: string): { bg: string; fg: string } {
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+        const p = this.bcpColorPalette[hash % this.bcpColorPalette.length];
+        return { bg: p.ib, fg: p.ic2 };
+    }
+
+    bcpInitials(name: string): string {
+        const words = name.trim().split(/\s+/).filter(Boolean);
+        if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+        return name.trim().substring(0, 2).toUpperCase();
+    }
+
+    bcpBadgeTone(overdueDays: number): 'ok' | 'warn' | 'bad' {
+        if (overdueDays <= 0) return 'ok';
+        if (overdueDays <= 3) return 'warn';
+        return 'bad';
+    }
+    // New helper — mirrors the logic used to build the summary tiles
+    private bcpClassifyByStatusId(statusId: number): 'g' | 'a' | 'r' {
+        if (this.inProductionStatusIds.includes(statusId) || this.readyToDeployStatusIds.includes(statusId)) {
+            return 'g';
+        }
+        if (this.inProgressStatusIds.includes(statusId)) {
+            return 'a';
+        }
+        // openStatusIds ("yet to start") + onHoldStatusIds ("blocked/on hold") both read as pending
+        return 'r';
+    }
+
     private resetToHomeState(): void {
         this.selectedPlatform = null;
         this.platformFilter = null;

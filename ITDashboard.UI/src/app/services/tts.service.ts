@@ -13,9 +13,7 @@ export class TTSService {
     constructor() {
         this.synthesis = window.speechSynthesis;
         if (!this.synthesis) {
-            console.warn('⚠️ Speech synthesis not supported in this browser');
         } else {
-            console.log('✅ Speech synthesis initialized');
             this.loadVoices();
         }
     }

@@ -55,31 +55,25 @@ public class AuthController : ControllerBase
                 Console.WriteLine($"❌ User not found: {request.Username}");
                 return Unauthorized(new { error = "Invalid username or password" });
             }
-            Console.WriteLine($"✅ User found: {user.Email} (ID: {user.Id})");
 
             // 2. ⚠️ SKIP PASSWORD VERIFICATION FOR TESTING
             // To restore security later, uncomment this block and remove the warning line.
-            Console.WriteLine($"⚠️ SKIPPING PASSWORD VERIFICATION - TESTING ONLY!");
-            /*
+
             var isPasswordValid = VerifyPassword(request.Password, user.Password);
             if (!isPasswordValid)
             {
                 return Unauthorized(new { error = "Invalid username or password" });
             }
-            */
+
 
             // 3. Get user roles
             var roles = await _authRepo.GetUserRolesAsync(user.Id);
-            Console.WriteLine($"✅ Roles: {string.Join(", ", roles.Select(r => r.Name))}");
 
             // 4. Get user permissions
             var permissions = await _authRepo.GetUserPermissionsAsync(user.Id);
-            Console.WriteLine($"✅ Permissions fetched");
 
             // 5. Generate JWT token
-            Console.WriteLine($"🔐 Generating token...");
             var token = GenerateJwtToken(user, roles);
-            Console.WriteLine($"✅ Token generated successfully");
 
             // 6. Return response
             return Ok(new LoginResponse

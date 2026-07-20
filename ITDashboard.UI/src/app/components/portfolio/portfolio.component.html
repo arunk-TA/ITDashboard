@@ -21,9 +21,19 @@
             <span class="stat-label">Yet to Start</span>
         </div>
         <div class="stat-box-item">
+            <span class="stat-value">{{selectedEntity.onHold}}</span>
+            <span class="stat-label">On Hold</span>
+        </div>
+        <div class="stat-box-item">
+            <!-- NEW -->
+            <span class="stat-value">{{selectedEntity.readyToDeploy}}</span>
+            <span class="stat-label">Ready to Deploy</span>
+        </div>
+        <div class="stat-box-item">
             <span class="stat-value">{{selectedEntity.inProduction}}</span>
             <span class="stat-label">In Production</span>
         </div>
+
         <div class="stat-box-item">
             <span class="entity-badge" [class.danger]="selectedEntity.overdue > 0" [class.good]="selectedEntity.overdue === 0">
                 {{selectedEntity.overdue > 0 ? selectedEntity.overdue + ' overdue' : 'Healthy'}}
@@ -79,6 +89,15 @@
                 <div class="stat-lbl">Yet to Start</div>
             </div>
             <div class="stat-box">
+                <div class="stat-val on-hold">{{entity.onHold}}</div>
+                <div class="stat-lbl">On Hold</div>
+            </div>
+            <div class="stat-box">
+                <!-- NEW -->
+                <div class="stat-val ready-to-deploy">{{entity.readyToDeploy}}</div>
+                <div class="stat-lbl">Ready to Deploy</div>
+            </div>
+            <div class="stat-box">
                 <div class="stat-val done">{{entity.inProduction}}</div>
                 <div class="stat-lbl">In Production</div>
             </div>
@@ -89,6 +108,9 @@
         <div class="progress-label">
             {{entity.totalTickets > 0 ? ((entity.inProduction / entity.totalTickets) * 100 | number:'1.0-0') : 0}}% in production
         </div>
+        <button class="view-dashboard-icon" (click)="viewEntityDashboard(entity, $event)" title="View Dashboard">
+            <i class="ti ti-eye"></i>
+        </button>
     </div>
 </div>
 
@@ -117,51 +139,49 @@
                 <span class="count-badge">{{group.data.length}} Departments</span>
             </div>
             <div *ngFor="let dept of group.data">
-                <div *ngIf="dept.departmentName !== 'General'">
-                    <div class="dept-header-row" (click)="toggleDeptExpand(dept)">
-                        <span class="expand-icon">{{isDeptExpanded(dept) ? '▼' : '▶'}}</span>
-                        <span class="dept-name">{{dept.departmentName}}</span>
-                        <span class="dept-count">{{dept.totalTickets}} tickets</span>
-                    </div>
-                    <div *ngIf="isDeptExpanded(dept)" class="release-details">
-                        <table class="release-table">
-                            <thead>
-                                <tr>
-                                    <th>Release No</th>
-                                    <th>Build Date</th>
-                                    <th>Description</th>
-                                    <th>Status</th>
-                                    <th style="width: 160px;">Assigned Resource</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr *ngFor="let release of dept.releases">
-                                    <td>{{release.scheduleBuildNo || '—'}}</td>
-                                    <td>{{(release.scheduleBuildDate | date:'dd MMM yyyy') || '—'}}</td>
-                                    <td class="description-cell">{{release.description || release.title || '—'}}</td>
-                                    <td>
-                                        <span class="status-badge" [class.previous]="release.statusName === 'In Production'">
-                                            {{release.statusName === 'In Production' ? 'Previous Build' : 'Current Build'}}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div *ngIf="!editingUser[getUserKey(release)]" class="user-display">
-                                            <span class="user-name" (click)="editUser(release)">{{getUserDisplayName(release.assignedUserId) || '—'}}</span>
-                                            <button *ngIf="canAssignResource" class="edit-user-btn" (click)="editUser(release)" title="Assign User">✏️</button>
-                                        </div>
-                                        <div *ngIf="editingUser[getUserKey(release)]" class="user-editor-inline">
-                                            <select [(ngModel)]="selectedUser[getUserKey(release)]" class="user-select">
-                                                <option value="0">— Select —</option>
-                                                <option *ngFor="let user of allUsers" [value]="user.id">{{user.firstname}}</option>
-                                            </select>
-                                            <button class="save-user-btn" (click)="saveUser(release)" [disabled]="savingUser[getUserKey(release)]">✔</button>
-                                            <button class="cancel-user-btn" (click)="cancelUserEdit(release)">✕</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="dept-header-row" (click)="toggleDeptExpand(dept)">
+                    <span class="expand-icon">{{isDeptExpanded(dept) ? '▼' : '▶'}}</span>
+                    <span class="dept-name">{{dept.departmentName === 'General' ? 'Unassigned' : dept.departmentName}}</span>
+                    <span class="dept-count">{{dept.totalTickets}} tickets</span>
+                </div>
+                <div *ngIf="isDeptExpanded(dept)" class="release-details">
+                    <table class="release-table">
+                        <thead>
+                            <tr>
+                                <th>Release No</th>
+                                <th>Build Date</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                                <th style="width: 160px;">Assigned Resource</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr *ngFor="let release of dept.releases">
+                                <td>{{release.scheduleBuildNo || '—'}}</td>
+                                <td>{{(release.scheduleBuildDate | date:'dd MMM yyyy') || '—'}}</td>
+                                <td class="description-cell">{{release.description || release.title || '—'}}</td>
+                                <td>
+                                    <span class="status-badge" [class.previous]="release.statusName === 'In Production'">
+                                        {{release.statusName === 'In Production' ? 'Previous Build' : 'Current Build'}}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div *ngIf="!editingUser[getUserKey(release)]" class="user-display">
+                                        <span class="user-name" (click)="editUser(release)">{{getUserDisplayName(release.assignedUserId) || '—'}}</span>
+                                        <button *ngIf="canAssignResource" class="edit-user-btn" (click)="editUser(release)" title="Assign User">✏️</button>
+                                    </div>
+                                    <div *ngIf="editingUser[getUserKey(release)]" class="user-editor-inline">
+                                        <select [(ngModel)]="selectedUser[getUserKey(release)]" class="user-select">
+                                            <option value="0">— Select —</option>
+                                            <option *ngFor="let user of allUsers" [value]="user.id">{{user.firstname}}</option>
+                                        </select>
+                                        <button class="save-user-btn" (click)="saveUser(release)" [disabled]="savingUser[getUserKey(release)]">✔</button>
+                                        <button class="cancel-user-btn" (click)="cancelUserEdit(release)">✕</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -170,7 +190,6 @@
         <p>No tickets found for {{selectedPlatform.name}} platform</p>
     </div>
 </ng-container>
-
 <!-- ==================== BUILD WISE VIEW ==================== -->
 <ng-container *ngIf="selectedView === 'build' && selectedPlatform">
 
@@ -182,7 +201,7 @@
             <span class="count-badge">{{platformCurrentBuildData.items.length}} Items</span>
             <button *ngIf="canCreate" class="add-ticket-btn"
                     (click)="openUpdateIncidentModal(); $event.stopPropagation()">
-                🔄 Update Incident
+                🔄 Include Incident
             </button>
 
             <!-- REPLACE the existing grn-btn button with: -->
@@ -211,9 +230,26 @@
                 </thead>
                 <tbody>
                     <ng-container *ngFor="let item of platformCurrentBuildData.items">
-                        <tr>
+                        <tr [class.incident-row]="item.typeId === 51">
                             <td class="text-left">{{item.ticketNo || item.id || '—'}}</td>
-                            <td class="text-left">{{item.departmentName || 'General'}}</td>
+                            <td class="text-left">
+                                <div *ngIf="!editingDepartment[getTicketKey(item)]" class="inline-edit-display">
+                                    <span (click)="editDepartment(item)" style="cursor:pointer">{{item.departmentName || 'General'}}</span>
+                                    <button *ngIf="canEdit" class="edit-inline-btn" (click)="editDepartment(item)" title="Edit Department">
+                                        <i class="ti ti-pencil"></i>
+                                    </button>
+                                </div>
+                                <div *ngIf="editingDepartment[getTicketKey(item)]" class="inline-edit-editor">
+                                    <select [(ngModel)]="selectedNewDepartment[getTicketKey(item)]" class="inline-input">
+                                        <option [ngValue]="0">— Select —</option>
+                                        <option *ngFor="let d of allDepartments" [ngValue]="d.id">{{d.fieldName}}</option>
+                                    </select>
+                                    <div class="inline-actions">
+                                        <button class="save-inline-btn" (click)="saveDepartment(item)" [disabled]="savingDepartment[getTicketKey(item)]">✔</button>
+                                        <button class="cancel-inline-btn" (click)="cancelDepartmentEdit(item)">✕</button>
+                                    </div>
+                                </div>
+                            </td>
                             <td class="text-left">
                                 <span class="description-cell" (click)="openDescriptionModal(item)" title="Click to view full description">
                                     {{stripHtml(item.description || '—')}}
@@ -283,7 +319,7 @@
                             <td class="text-left">
                                 <div *ngIf="!editingStatus[getStatusKey(item)]" class="status-display">
                                     <span class="status-badge" [class.yet-to-start]="item.statusName === 'Yet to Start' || item.statusName === 'Requirement Analysis'" (click)="editStatus(item)" style="cursor: pointer;">
-                                        {{item.statusName === 'Requirement Analysis' ? 'Yet to Start' : (item.statusName || '—')}}
+                                        {{getDisplayStatusName(item)}}
                                     </span>
                                     <button *ngIf="canEdit" class="edit-status-btn" (click)="editStatus(item)" title="Edit Status">
                                         <i class="ti ti-pencil"></i>
@@ -442,9 +478,26 @@
                     </thead>
                     <tbody>
                         <ng-container *ngFor="let item of platformFutureReleasesData.items">
-                            <tr>
+                            <tr [class.incident-row]="item.typeId === 51">
                                 <td class="text-left">{{item.ticketNo || item.id || '—'}}</td>
-                                <td class="text-left">{{item.departmentName || 'General'}}</td>
+                                <td class="text-left">
+                                    <div *ngIf="!editingDepartment[getTicketKey(item)]" class="inline-edit-display">
+                                        <span (click)="editDepartment(item)" style="cursor:pointer">{{item.departmentName || 'General'}}</span>
+                                        <button *ngIf="canEdit" class="edit-inline-btn" (click)="editDepartment(item)" title="Edit Department">
+                                            <i class="ti ti-pencil"></i>
+                                        </button>
+                                    </div>
+                                    <div *ngIf="editingDepartment[getTicketKey(item)]" class="inline-edit-editor">
+                                        <select [(ngModel)]="selectedNewDepartment[getTicketKey(item)]" class="inline-input">
+                                            <option [ngValue]="0">— Select —</option>
+                                            <option *ngFor="let d of allDepartments" [ngValue]="d.id">{{d.fieldName}}</option>
+                                        </select>
+                                        <div class="inline-actions">
+                                            <button class="save-inline-btn" (click)="saveDepartment(item)" [disabled]="savingDepartment[getTicketKey(item)]">✔</button>
+                                            <button class="cancel-inline-btn" (click)="cancelDepartmentEdit(item)">✕</button>
+                                        </div>
+                                    </div>
+                                </td>
                                 <td class="text-left">
                                     <span class="description-cell" (click)="openDescriptionModal(item)" title="Click to view full description">
                                         {{stripHtml(item.description || '—')}}
@@ -514,7 +567,7 @@
                                 <td class="text-left">
                                     <div *ngIf="!editingStatus[getStatusKey(item)]" class="status-display">
                                         <span class="status-badge" [class.yet-to-start]="item.statusName === 'Yet to Start' || item.statusName === 'Requirement Analysis'" (click)="editStatus(item)" style="cursor: pointer;">
-                                            {{item.statusName === 'Requirement Analysis' ? 'Yet to Start' : (item.statusName || '—')}}
+                                            {{getDisplayStatusName(item)}}
                                         </span>
                                         <button *ngIf="canEdit" class="edit-status-btn" (click)="editStatus(item)" title="Edit Status">
                                             <i class="ti ti-pencil"></i>
@@ -539,48 +592,48 @@
                                 </td>
 
                                 <!--
-                        <td class="text-left">
-                            <div class="upload-btn-small"
-                                 (click)="triggerTicketFileInput(item.id); $event.stopPropagation()">
-                                <span *ngIf="uploadingDoc['ticket_' + item.id]">⏳</span>
-                                <span *ngIf="!uploadingDoc['ticket_' + item.id]">+</span>
-                            </div>
-                            <input type="file"
-                                   [id]="'fileInput_ticket_' + item.id"
-                                   style="display:none"
-                                   (change)="onTicketDocFileSelected($event, item)"
-                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip" />
-                            <div class="uploaded-files"
-                                 *ngIf="buildDocs['ticket_' + item.id] && buildDocs['ticket_' + item.id].length > 0">
-                                <div class="file-item"
-                                     *ngFor="let doc of buildDocs['ticket_' + item.id]">
-                                    <a [href]="apiBaseUrl + doc.filePath"
-                                       target="_blank"
-                                       class="file-name"
-                                       title="{{doc.fileName}}">
-                                        {{doc.fileName | slice:0:12}}{{doc.fileName.length > 12 ? '…' : ''}}
-                                    </a>
-                                    <button class="delete-file-btn"
-                                            (click)="deleteTicketDoc(item, doc.id); $event.stopPropagation()"
-                                            title="Delete {{doc.fileName}}">
-                                        🗑️
+                                <td class="text-left">
+                                    <div class="upload-btn-small"
+                                         (click)="triggerTicketFileInput(item.id); $event.stopPropagation()">
+                                        <span *ngIf="uploadingDoc['ticket_' + item.id]">⏳</span>
+                                        <span *ngIf="!uploadingDoc['ticket_' + item.id]">+</span>
+                                    </div>
+                                    <input type="file"
+                                           [id]="'fileInput_ticket_' + item.id"
+                                           style="display:none"
+                                           (change)="onTicketDocFileSelected($event, item)"
+                                           accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip" />
+                                    <div class="uploaded-files"
+                                         *ngIf="buildDocs['ticket_' + item.id] && buildDocs['ticket_' + item.id].length > 0">
+                                        <div class="file-item"
+                                             *ngFor="let doc of buildDocs['ticket_' + item.id]">
+                                            <a [href]="apiBaseUrl + doc.filePath"
+                                               target="_blank"
+                                               class="file-name"
+                                               title="{{doc.fileName}}">
+                                                {{doc.fileName | slice:0:12}}{{doc.fileName.length > 12 ? '…' : ''}}
+                                            </a>
+                                            <button class="delete-file-btn"
+                                                    (click)="deleteTicketDoc(item, doc.id); $event.stopPropagation()"
+                                                    title="Delete {{doc.fileName}}">
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div *ngIf="!buildDocs['ticket_' + item.id] || buildDocs['ticket_' + item.id].length === 0"
+                                         style="font-size:8pt;color:#aaa;">
+                                        No docs
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <button class="audit-btn"
+                                            *ngIf="!isViewer"
+                                            (click)="openAuditLogModal(item, $event)"
+                                            title="View Audit Log">
+                                        <i class="ti ti-info-circle"></i>
                                     </button>
-                                </div>
-                            </div>
-                            <div *ngIf="!buildDocs['ticket_' + item.id] || buildDocs['ticket_' + item.id].length === 0"
-                                 style="font-size:8pt;color:#aaa;">
-                                No docs
-                            </div>
-                        </td>
-                        <td class="text-center">
-                            <button class="audit-btn"
-                                    *ngIf="!isViewer"
-                                    (click)="openAuditLogModal(item, $event)"
-                                    title="View Audit Log">
-                                <i class="ti ti-info-circle"></i>
-                            </button>
-                        </td>
-                        -->
+                                </td>
+                                -->
 
                                 <td class="text-left">
                                     <button *ngIf="canDelete" class="delete-btn" (click)="confirmDeleteTicket(item)" title="Deactivate Ticket" [disabled]="deletingTicket[getTicketKey(item)]">
@@ -629,7 +682,7 @@
                 </table>
             </div>
         </div>
-        </div>
+    </div>
 
     <!-- Previous Builds Section -->
     <div class="request-section" *ngIf="platformPreviousBuildsData.length > 0">
@@ -669,7 +722,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr *ngFor="let item of build.items">
+                            <tr *ngFor="let item of build.items" [class.incident-row]="item.typeId === 51">
                                 <td class="text-left">
                                     <button *ngIf="canDelete" class="delete-btn" (click)="confirmDeleteTicket(item)" title="Deactivate Ticket" [disabled]="deletingTicket[getTicketKey(item)]">
                                         <i class="ti ti-trash"></i>
@@ -817,566 +870,189 @@
         </div>
     </div>
 </div>
-<!-- ==================== CREATE TICKET MODAL ==================== -->
-<div class="modal-overlay" *ngIf="showCreateTicketModal" (click)="closeCreateTicketModal()">
-    <div class="create-ticket-modal" (click)="$event.stopPropagation()">
-        <!-- Modal Header -->
-        <div class="modal-header">
-            <div class="modal-title">
-                <span class="modal-icon">🎫</span>
-                <span>Create New Ticket</span>
-                <span class="modal-subtitle" *ngIf="selectedPlatform">
-                    {{selectedPlatform.name}} · {{selectedEntity?.entityName}}
-                </span>
+<!-- ==================== BCP DASHBOARD MODAL ==================== -->
+<div class="bcp-modal-overlay" *ngIf="showBCPModal && !bcpModalMinimized" (click)="closeBCPModal()">
+    <div class="bcp-modal" (click)="$event.stopPropagation()">
+        <div class="bcp-header">
+            <div>
+                <div class="bcp-brand">{{bcpEntityName || 'Portfolio'}}</div>
+                <div class="bcp-title">BCP Pending Tracker</div>
+                <div class="bcp-subtitle">All departmental delivery status · Refreshed {{bcpLastUploadedDate}} · Click any card to expand</div>
             </div>
-            <button class="modal-close-btn" (click)="closeCreateTicketModal()">✕</button>
+            <div class="bcp-header-right">
+                <div class="bcp-header-buttons">
+                    <button class="bcp-modal-minimize" (click)="minimizeBCPModal()" title="Minimize">&#8211;</button>
+                    <button class="bcp-modal-close" (click)="closeBCPModal()">✕</button>
+                </div>
+            </div>
         </div>
 
-        <!-- Modal Body -->
-        <div class="modal-body">
-            <form #ticketForm="ngForm" (ngSubmit)="saveNewTicket()">
-                <!-- Title & Description -->
-                <div class="form-row">
-                    <div class="form-group full-width">
-                        <label class="form-label">Title <span class="required">*</span></label>
-                        <input type="text"
-                               class="form-control"
-                               [(ngModel)]="newTicket.title"
-                               name="title"
-                               placeholder="Enter ticket title"
-                               required />
+        <!-- ==================== ROW 1: TOP-LEVEL TOTALS + FILTERS + DONUT ==================== -->
+        <div class="bcp-kpi-row">
+            <!-- LEFT COLUMN: KPI Cards + Filters stacked vertically -->
+            <div class="bcp-kpi-column">
+                <!-- KPI Cards Row -->
+                <div class="bcp-kpi-cards">
+                    <div class="bcp-kpi total" [class.active]="bcpFilter==='all'" (click)="bcpSetFilter('all')" style="cursor:pointer;">
+                        <div class="bcp-kpi-num">{{bcpTotals.tot}}</div>
+                        <div class="bcp-kpi-lbl">Total BCP items across {{bcpDepts.length}} depts</div>
+                        <div class="bcp-kpi-bar"><div class="bcp-kpi-fill" style="width:100%;background:#D3D1C7"></div></div>
+                    </div>
+                    <div class="bcp-kpi done" [class.active]="bcpFilter==='g'" (click)="bcpSetFilter('g')" style="cursor:pointer;">
+                        <div class="bcp-kpi-num">{{bcpTotals.g}}</div>
+                        <div class="bcp-kpi-lbl">In Production {{bcpPct(bcpTotals.g)}}%</div>
+                        <div class="bcp-kpi-bar"><div class="bcp-kpi-fill" [style.width.%]="bcpPct(bcpTotals.g)" style="background:#639922"></div></div>
+                    </div>
+                    <div class="bcp-kpi in-progress" [class.active]="bcpFilter==='a'" (click)="bcpSetFilter('a')" style="cursor:pointer;">
+                        <div class="bcp-kpi-num">{{bcpTotals.a}}</div>
+                        <div class="bcp-kpi-lbl">In progress · {{bcpPct(bcpTotals.a)}}%</div>
+                        <div class="bcp-kpi-bar"><div class="bcp-kpi-fill" [style.width.%]="bcpPct(bcpTotals.a)" style="background:#EF9F27"></div></div>
+                    </div>
+                    <div class="bcp-kpi pending" [class.active]="bcpFilter==='r'" (click)="bcpSetFilter('r')" style="cursor:pointer;">
+                        <div class="bcp-kpi-num">{{bcpTotals.r}}</div>
+                        <div class="bcp-kpi-lbl">Other Status  {{bcpPct(bcpTotals.r)}}%</div>
+                        <div class="bcp-kpi-bar"><div class="bcp-kpi-fill" [style.width.%]="bcpPct(bcpTotals.r)" style="background:#E24B4A"></div></div>
                     </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group full-width">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control"
-                                  [(ngModel)]="newTicket.description"
-                                  name="description"
-                                  rows="3"
-                                  placeholder="Enter ticket description"></textarea>
-                    </div>
-                </div>
-
-                <!-- Two Column Layout -->
-                <div class="form-row two-col">
-                    <div class="form-group">
-                        <label class="form-label">Type</label>
-                        <select class="form-control" [(ngModel)]="newTicket.typeId" name="typeId">
-                            <option [value]="1">CR</option>
-                            <option [value]="2">Issue</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Status</label>
-                        <select class="form-control" [(ngModel)]="newTicket.statusId" name="statusId">
-                            <option [value]="null">— Select —</option>
-                            <option *ngFor="let s of availableStatuses" [value]="s.id">{{s.fieldName}}</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-row two-col">
-                    <div class="form-group">
-                        <label class="form-label">Priority</label>
-                        <select class="form-control" [(ngModel)]="newTicket.priorityId" name="priorityId">
-                            <option [value]="null">— Select —</option>
-                            <option *ngFor="let p of priorityList" [value]="p.id">{{p.fieldName}}</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Department</label>
-                        <select class="form-control" [(ngModel)]="newTicket.departmentId" name="departmentId">
-                            <option [value]="null">— Select —</option>
-                            <option *ngFor="let d of allDepartments" [value]="d.id">{{d.fieldName}}</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-row two-col">
-                    <div class="form-group">
-                        <label class="form-label">Category</label>
-                        <select class="form-control" [(ngModel)]="newTicket.categoryId" name="categoryId">
-                            <option [value]="null">— Select —</option>
-                            <option *ngFor="let c of allCategories" [value]="c.id">{{c.categoryName}}</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Assigned Resource</label>
-                        <select class="form-control" [(ngModel)]="newTicket.assignedUserId" name="assignedUserId">
-                            <option [value]="null">— Select —</option>
-                            <option *ngFor="let u of allUsers" [value]="u.id">{{u.realname || u.name}}</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Dates Section -->
-                <div class="section-divider">
-                    <span class="divider-label">Schedule</span>
-                </div>
-
-                <div class="form-row two-col">
-                    <div class="form-group">
-                        <label class="form-label">Planned Date</label>
-                        <input type="date" class="form-control" [(ngModel)]="newTicket.plannedDate" name="plannedDate" />
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Build Date</label>
-                        <input type="date" class="form-control" [(ngModel)]="newTicket.scheduleBuildDate" name="scheduleBuildDate" />
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group full-width">
-                        <label class="form-label">Build Number</label>
-                        <input type="text"
-                               class="form-control"
-                               [(ngModel)]="newTicket.scheduleBuildNo"
-                               name="scheduleBuildNo"
-                               placeholder="Leave blank for Future Release" />
-                        <small class="form-hint">Leave blank to mark as Future Release</small>
-                    </div>
-                </div>
-
-                <!-- Form Actions -->
-                <div class="form-actions">
-                    <button type="button" class="btn-cancel" (click)="closeCreateTicketModal()">Cancel</button>
-                    <button type="submit" class="btn-save" [disabled]="!ticketForm.valid || savingTicket">
-                        <span *ngIf="!savingTicket">Create Ticket</span>
-                        <span *ngIf="savingTicket">
-                            <span class="spinner-small"></span> Creating...
-                        </span>
+                <!-- Filters Row - Below KPI cards -->
+                <div class="bcp-filters-row" *ngIf="bcpSubStatusOptions.length">
+                    <span class="bcp-filter-label">FILTER BY STATUS</span>
+                    <button class="bcp-filter-btn"
+                            *ngFor="let opt of bcpSubStatusOptions"
+                            [class.active]="bcpSubStatusFilter === opt.status"
+                            (click)="bcpSetSubStatusFilter(opt.status)">
+                        {{opt.status}} <span class="bcp-filter-count">{{opt.count}}</span>
+                    </button>
+                    <button class="bcp-filter-clear" *ngIf="bcpSubStatusFilter" (click)="bcpSetSubStatusFilter('')">
+                        ✕ Clear
                     </button>
                 </div>
-            </form>
-        </div>
-    </div>
-</div>
-<!-- ==================== UPDATE INCIDENT MODAL ==================== -->
-<div class="modal-overlay" *ngIf="showUpdateIncidentModal" (click)="closeUpdateIncidentModal()">
-    <div class="create-ticket-modal" (click)="$event.stopPropagation()" style="max-width: 560px;">
-        <div class="modal-header">
-            <div class="modal-title">
-                <span class="modal-icon">🔄</span>
-                <span>Include Incident</span>
-                <span class="modal-subtitle" *ngIf="selectedPlatform">
-                    {{selectedPlatform.name}} · {{selectedEntity?.entityName}}
-                </span>
             </div>
-            <button class="modal-close-btn" (click)="closeUpdateIncidentModal()">✕</button>
-        </div>
 
-        <div class="modal-body">
-            <div class="form-row">
-                <div class="form-group full-width">
-                    <label class="form-label">Search Ticket Number</label>
-                    <input type="text"
-                           class="form-control"
-                           [(ngModel)]="incidentSearchTerm"
-                           name="incidentSearchTerm"
-                           placeholder="Enter Ticket No. or Description..."
-                           (input)="onIncidentSearchInput()" />
+            <!-- RIGHT COLUMN: Donut Panel -->
+            <div class="bcp-donut-panel">
+                <div class="bcp-donut-box"> 
+                    <canvas #bcpResourceCanvas></canvas>
+                </div>
+                <div class="bcp-donut-legend">
+                    <div class="bcp-legend-row" *ngFor="let r of bcpResourceStats">
+                        <span class="bcp-legend-dot"
+                              [style.background]="r.overdueDays > 10 ? '#E24B4A' : r.overdueDays > 3 ? '#EF9F27' : '#639922'"></span>
+                        <span class="bcp-legend-name">{{r.name}}</span>
+                        <span class="bcp-legend-days">{{r.overdueDays}}d</span>
+                    </div>
                 </div>
             </div>
-
-            <div *ngIf="searchingIncidents" class="loading-state" style="padding: 12px 0;">
-                <span class="spinner"></span> Searching...
-            </div>
-
-            <div *ngIf="!searchingIncidents && incidentSearchTerm.trim().length >= 2 && incidentSearchResults.length === 0"
-                 class="no-docs" style="padding: 12px 0;">
-                <span>📭</span> No matching inactive incidents found.
-            </div>
-
-            <div *ngFor="let inc of incidentSearchResults"
-                 class="incident-result-item"
-                 [class.selected]="selectedIncident?.id === inc.id"
-                 (click)="selectIncident(inc)"
-                 [style.border]="selectedIncident?.id === inc.id ? '2px solid #2563eb' : '1px solid #e2e8f0'"
-                 style="padding:10px 12px;border-radius:6px;margin-bottom:6px;cursor:pointer;">
-                <div style="display:flex;justify-content:space-between;font-weight:600;font-size:9pt;">
-                    <span>Ticket #{{inc.ticketNo}}</span>
-                    <span style="color:#64748b;font-weight:400;">{{inc.departmentName || 'General'}}</span>
-                </div>
-                <div style="font-size:9pt;margin-top:2px;">{{inc.title}}</div>
-                <div style="font-size:8pt;color:#64748b;margin-top:2px;">{{(inc.description || '') | slice:0:80}}</div>
-            </div>
-
-            <div class="form-actions" style="margin-top: 16px;">
-                <button type="button" class="btn-cancel" (click)="closeUpdateIncidentModal()">Cancel</button>
-                <button type="button" class="btn-save"
-                        [disabled]="!selectedIncident || activatingIncident"
-                        (click)="confirmUpdateIncident()">
-                    <span *ngIf="!activatingIncident">Save</span>
-                    <span *ngIf="activatingIncident"><span class="spinner-small"></span> Updating...</span>
-                </button>
-            </div>
         </div>
-    </div>
-</div>
-<!-- ==================== AUDIT LOG MODAL ==================== -->
-<div class="modal-overlay" *ngIf="showAuditLogModal" (click)="closeAuditLogModal()">
-    <div class="audit-log-modal" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-            <div class="modal-title">
-                <span class="audit-icon">📋</span>
-                <span>Audit Log</span>
-                <span class="ticket-info" *ngIf="selectedTicketForAudit">
-                    #{{selectedTicketForAudit.ticketNo || selectedTicketForAudit.id}} - {{selectedTicketForAudit.title}}
-                </span>
-            </div>
-            <button class="modal-close-btn" (click)="closeAuditLogModal()">✕</button>
+        <div class="bcp-donut-caption">
+            ℹ️ Hover a segment for that resource's pending / in-progress / done / overdue breakdown.
         </div>
+        <!-- ==================== EXPAND/COLLAPSE + DEPT MULTISELECT ==================== -->
+        <div class="bcp-controls">
+            <div class="bcp-frow">
+                <button class="bcp-fp" type="button" (click)="bcpExpandAll()">⊞ Expand All</button>
+                <button class="bcp-fp" type="button" (click)="bcpCollapseAll()">⊟ Collapse All</button>
 
-        <div class="modal-body">
-            <!-- Loading State -->
-            <div *ngIf="loadingAuditLog" class="loading-state">
-                <div class="spinner"></div>
-                <span>Loading audit history...</span>
-            </div>
+                <div class="bcp-dept-multiselect">
+                    <button class="bcp-fp" type="button" (click)="$event.stopPropagation(); toggleBcpDeptDropdown()">
+                        🏢 Departments{{bcpOpenedDepts.size > 0 ? ' (' + bcpOpenedDepts.size + ')' : ''}}
+                        <span>{{bcpDeptDropdownOpen ? '▲' : '▼'}}</span>
+                    </button>
 
-            <!-- No Logs -->
-            <div *ngIf="!loadingAuditLog && auditLogs.length === 0" class="no-logs">
-                <span class="no-logs-icon">📭</span>
-                <p>No audit records found for this ticket.</p>
-            </div>
-
-            <!-- Audit Logs List -->
-            <div *ngIf="!loadingAuditLog && auditLogs.length > 0" class="audit-timeline">
-                <div class="audit-item" *ngFor="let log of auditLogs">
-                    <div class="audit-timeline-line">
-                        <span class="audit-badge" [class]="getActionBadgeClass(log.action)">
-                            {{getActionIcon(log.action)}}
-                        </span>
-                        <div class="audit-content">
-                            <div class="audit-header">
-                                <span class="audit-action">{{log.action | titlecase}}</span>
-                                <span class="audit-date">{{log.changedDate | date:'dd MMM yyyy, hh:mm a'}}</span>
-                            </div>
-                            <div class="audit-details">
-                                <span class="audit-user">
-                                    👤 {{log.changedBy || 'System'}}
-                                    <span class="audit-user-id" *ngIf="log.changedById">(ID: {{log.changedById}})</span>
-                                </span>
-                                <span class="audit-field" *ngIf="log.fieldName">
-                                    Field: <strong>{{log.fieldName}}</strong>
-                                </span>
-                            </div>
-                            <div class="audit-values" *ngIf="log.oldValue || log.newValue">
-                                <div class="audit-old-value" *ngIf="log.oldValue">
-                                    <span class="value-label">From:</span>
-                                    <span class="value-text old">{{formatAuditValue(log.oldValue)}}</span>
-                                </div>
-                                <div class="audit-new-value" *ngIf="log.newValue">
-                                    <span class="value-label">To:</span>
-                                    <span class="value-text new">{{formatAuditValue(log.newValue)}}</span>
-                                </div>
-                            </div>
-                            <div class="audit-remarks" *ngIf="log.remarks">
-                                <span class="remarks-label">📌</span>
-                                <span class="remarks-text">{{log.remarks}}</span>
-                            </div>
+                    <div class="bcp-dept-dropdown" *ngIf="bcpDeptDropdownOpen" (click)="$event.stopPropagation()">
+                        <label class="bcp-dept-dropdown-item" *ngFor="let d of bcpDepts">
+                            <input type="checkbox"
+                                   [checked]="bcpIsDeptSelectedForExpand(d.id)"
+                                   (change)="bcpToggleDeptSelection(d.id, $event)" />
+                            <span>{{d.id}}</span>
+                            <span class="bcp-dept-dropdown-count">{{d.t}}</span>
+                        </label>
+                        <div class="bcp-dept-dropdown-footer">
+                            <button class="bcp-filter-clear" type="button" (click)="bcpExpandAll()">Select All</button>
+                            <button class="bcp-filter-clear" type="button" (click)="bcpCollapseAll()">Clear</button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+        <!-- ==================== BCP GRID ==================== -->
+        <div class="bcp-grid">
+            <div class="bcp-card" *ngFor="let d of bcpFilteredDepts" [class.open]="bcpIsDeptOpen(d.id)">
+                <div class="bcp-ctop" (click)="bcpToggleDept(d.id)">
+                    <div class="bcp-drow">
+                        <div class="bcp-dname">
+                            <div class="bcp-dicon" [style.background]="d.ib" [style.color]="d.ic2">{{d.ic}}</div>{{d.id}}
+                        </div>
+                        <div class="bcp-dcnt">
+                            {{d.t}} item{{d.t !== 1 ? 's' : ''}}
+                            <span class="bcp-chev" [class.r]="bcpIsDeptOpen(d.id)">▼</span>
+                        </div>
+                    </div>
+                    <div class="bcp-sbar">
+                        <div class="bcp-sb bcp-sb-g" *ngIf="d.g > 0" [style.flex]="d.g"></div>
+                        <div class="bcp-sb bcp-sb-a" *ngIf="d.a > 0" [style.flex]="d.a"></div>
+                        <div class="bcp-sb bcp-sb-r" *ngIf="d.r > 0" [style.flex]="d.r"></div>
+                    </div>
+                    <div class="bcp-pills">
+                        <span class="bcp-pill bcp-pg" *ngIf="d.g">✓ {{d.g}} done</span>
+                        <span class="bcp-pill bcp-pa" *ngIf="d.a">↻ {{d.a}} in progress</span>
+                        <span class="bcp-pill bcp-pr" *ngIf="d.r">⚑ {{d.r}} pending</span>
+                    </div>
+                </div>
+                <div class="bcp-iw" [class.open]="bcpIsDeptOpen(d.id)">
+                    <div class="bcp-ii">
+                        <div class="bcp-col-hdr">
+                            <div></div>
+                            <div class="bcp-ch">Deliverable</div>
+                            <div class="bcp-ch">Key module</div>
+                            <div class="bcp-ch">Status</div>
+                            <div class="bcp-ch bcp-ch-r">Target date</div>
+                        </div>
+                        <div class="bcp-item" *ngFor="let i of d.items">
+                            <div class="bcp-ipip" [ngClass]="'bcp-ip-' + i.c"></div>
+                            <div class="bcp-icell">{{i.n}}</div>
+                            <div class="bcp-icell-sm">
+                                <span class="bcp-ikey" *ngIf="i.k">{{i.k}}</span>
+                                <span class="bcp-ikey-none" *ngIf="!i.k">—</span>
+                            </div>
+                            <div class="bcp-icell-sm">{{i.s}}</div>
+                            <div class="bcp-icell bcp-icell-r">
+                                <span *ngIf="i.d" [class.bcp-date-overdue]="bcpIsOverdue(i.d, i.c)" [class.bcp-date-val]="!bcpIsOverdue(i.d, i.c)">{{i.d}}</span>
+                                <span class="bcp-date-tbd" *ngIf="!i.d">TBD</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bcp-empty" *ngIf="bcpFilteredDepts.length === 0">No results match your filter or search.</div>
+        </div>
 
-        <div class="modal-footer">
-            <button class="close-btn" (click)="closeAuditLogModal()">Close</button>
+        <div class="bcp-footer">
+            <span>Source: {{bcpFileName}} · Refreshed {{bcpLastUploadedDate}}</span>
+            <span>Overdue target dates shown in red</span>
         </div>
     </div>
-
 </div>
-<!-- ==================== DESCRIPTION PREVIEW MODAL ==================== -->
+
+<div class="bcp-minimized-pill" *ngIf="showBCPModal && bcpModalMinimized" (click)="restoreBCPModal()">
+    <span class="bcp-pill-icon">📊</span>
+    <span class="bcp-pill-text">{{bcpFileName || 'BCP Dashboard'}}</span>
+    <span class="bcp-pill-expand">⤢</span>
+</div>
+<!-- ==================== DESCRIPTION MODAL ==================== -->
 <div class="desc-modal-overlay" *ngIf="showDescriptionModal" (click)="closeDescriptionModal()">
-    <div class="desc-modal" (click)="$event.stopPropagation()">
+    <div class="desc-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
         <div class="desc-modal-header">
-            <span>📝 {{selectedDescriptionTicket || 'Description'}}</span>
-            <button class="desc-modal-close" (click)="closeDescriptionModal()">✕</button>
+            <span class="desc-modal-title">{{selectedDescriptionTicket}}</span>
+            <button class="desc-modal-close" (click)="closeDescriptionModal()" aria-label="Close">&times;</button>
         </div>
         <div class="desc-modal-body">
-            {{selectedDescriptionText}}
+            <div *ngIf="selectedDescriptionText" [innerHTML]="selectedDescriptionText"></div>
+            <div *ngIf="!selectedDescriptionText" class="text-muted">No description available</div>
         </div>
         <div class="desc-modal-footer">
-            <button class="btn-cancel" (click)="closeDescriptionModal()">Close</button>
+            <button class="btn btn-secondary" (click)="closeDescriptionModal()">Close</button>
         </div>
     </div>
 </div>
-<!-- ==================== RELEASE NOTES PREVIEW MODAL ==================== -->
-<!-- ==================== RELEASE NOTES PREVIEW MODAL ==================== -->
-<div class="rn-modal-overlay" *ngIf="showRNPreviewModal" (click)="closeRNPreviewModal()">
-    <div class="rn-modal" (click)="$event.stopPropagation()">
-
-        <!-- HEADER -->
-        <div class="rn-modal-header">
-            <div class="rn-modal-title">
-                <span class="rn-modal-icon">📄</span>
-                <span>Release Notes</span>
-                <span class="rn-modal-badge">
-                    {{ rnPreviewSection === 'current' ? 'Current Releases' : 'Future Releases' }}
-                </span>
-                <span class="rn-modal-badge rn-badge-count">{{ rnPreviewItems.length }} tickets</span>
-            </div>
-            <button class="rn-modal-close" (click)="closeRNPreviewModal()">✕</button>
-        </div>
-
-        <!-- BODY: two columns -->
-        <div class="rn-modal-body">
-            <!-- ── LEFT: Edit Panel ── -->
-            <div class="rn-edit-panel">
-                <p class="rn-panel-heading">Document Settings</p>
-
-                <!-- 1. Logo -->
-                <div class="rn-field">
-                    <label class="rn-label">Logo Image</label>
-                    <div class="rn-logo-box">
-                        <img *ngIf="rnLogoPreviewUrl" [src]="rnLogoPreviewUrl"
-                             class="rn-logo-thumb" alt="Logo preview" />
-                        <div *ngIf="!rnLogoPreviewUrl" class="rn-logo-empty">
-                            <span style="font-size:22px;">🖼️</span>
-                            <small>No logo uploaded<br />(uses default STEMZ logo)</small>
-                        </div>
-                        <div class="rn-logo-actions">
-                            <button class="rn-btn-blue" type="button" (click)="rnLogoInput.click()">
-                                📁 {{ rnLogoPreviewUrl ? 'Change' : 'Upload Logo' }}
-                            </button>
-                            <button *ngIf="rnLogoPreviewUrl" class="rn-btn-red" type="button"
-                                    (click)="rnCustomLogoBase64=null; rnLogoPreviewUrl=null">
-                                ✕ Remove
-                            </button>
-                        </div>
-                        <input #rnLogoInput type="file" accept="image/*" style="display:none"
-                               (change)="onRNLogoSelected($event)" />
-                    </div>
-                </div>
-
-                <!-- 2. Author -->
-                <div class="rn-field">
-                    <label class="rn-label">Author(s)</label>
-                    <input type="text" class="rn-input" [(ngModel)]="rnAuthorName"
-                           name="rnAuthorName" placeholder="e.g. Surabhi" />
-                </div>
-
-                <!-- 3. Approver -->
-                <div class="rn-field">
-                    <label class="rn-label">Approved By</label>
-                    <input type="text" class="rn-input" [(ngModel)]="rnApproverName"
-                           name="rnApproverName" placeholder="e.g. Hari" />
-                </div>
-
-                <!-- 4. Overview -->
-                <div class="rn-field">
-                    <label class="rn-label">Overview Text</label>
-                    <textarea class="rn-input rn-textarea" [(ngModel)]="rnOverviewText"
-                              name="rnOverviewText" rows="3"
-                              placeholder="Brief overview of this release..."></textarea>
-                </div>
-
-                <!-- 5. Special Instructions -->
-                <div class="rn-field">
-                    <label class="rn-label">Special Instructions</label>
-                    <textarea class="rn-input rn-textarea" [(ngModel)]="rnSpecialInstructions"
-                              name="rnSpecialInstructions" rows="2"
-                              placeholder="NA"></textarea>
-                </div>
-
-                <!-- 6. Config Impact -->
-                <div class="rn-field">
-                    <label class="rn-label">
-                        Configuration Impact
-                        <small style="font-weight:400;text-transform:none;">(one per line)</small>
-                    </label>
-                    <textarea class="rn-input rn-textarea" [(ngModel)]="rnConfigImpact"
-                              name="rnConfigImpact" rows="4"
-                              placeholder="One config item per line..."></textarea>
-                </div>
-
-                <!-- 7. Divider -->
-                <hr style="border:none;border-top:1px solid #e2e8f0;margin:4px 0;" />
-
-                <!-- 8. Per-ticket image upload -->
-                <div class="rn-field">
-                    <label class="rn-label">Upload Images per Ticket</label>
-                    <p style="font-size:8pt;color:#64748b;margin:0 0 8px;line-height:1.4;">
-                        Images appear in each ticket's detail section in the PDF.
-                    </p>
-
-                    <div *ngFor="let item of rnPreviewItems" class="rn-ticket-img-block">
-
-                        <!-- Hidden file input — ID-based, no template ref -->
-                        <input type="file"
-                               accept="image/*"
-                               multiple
-                               style="display:none"
-                               [id]="'rnImg_' + getTicketKey(item)"
-                               (change)="onRNTicketImageSelected($event, item)" />
-
-                        <!-- Ticket row -->
-                        <div class="rn-ticket-img-header">
-                            <span class="rn-ticket-img-name">
-                                <strong>{{item.departmentName || 'General'}}</strong> —
-                                {{(item.description || item.title || '').slice(0,36)}}{{(item.description || item.title || '').length > 36 ? '...' : ''}}
-                            </span>
-                            <button class="rn-btn-blue rn-btn-xs" type="button"
-                                    (click)="triggerRNTicketImageInput(getTicketKey(item)); $event.stopPropagation()">
-                                + Image
-                            </button>
-                        </div>
-
-                        <!-- Thumbnails -->
-                        <ng-container *ngIf="rnTicketImages[getTicketKey(item)]?.length">
-                            <div *ngFor="let img of rnTicketImages[getTicketKey(item)]; let idx = index"
-                                 class="rn-ticket-img-item">
-                                <img [src]="img.base64" class="rn-ticket-img-thumb" alt="screenshot" />
-                                <div class="rn-ticket-img-info">
-                                    <input type="text" class="rn-input rn-caption-input"
-                                           [(ngModel)]="img.caption"
-                                           [name]="'cap_' + getTicketKey(item) + '_' + idx"
-                                           placeholder="Caption (optional)" />
-                                    <button class="rn-btn-red rn-btn-xs" type="button"
-                                            (click)="removeRNTicketImage(getTicketKey(item), idx); $event.stopPropagation()">
-                                        ✕
-                                    </button>
-                                </div>
-                            </div>
-                        </ng-container>
-
-                        <div *ngIf="!rnTicketImages[getTicketKey(item)]?.length"
-                             class="rn-ticket-img-empty">
-                            No images added
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 9. Stats -->
-                <div class="rn-stats-row">
-                    <span class="rn-stat-chip">📦 {{rnPreviewItems.length}} total</span>
-                    <span class="rn-stat-chip rn-chip-blue">✨ {{rnFeatureCount()}} features</span>
-                    <span class="rn-stat-chip rn-chip-red">🐛 {{rnBugCount()}} fixes</span>
-                </div>
-
-            </div>
-            <!-- ── RIGHT: Live Preview ── -->
-            <div class="rn-preview-panel">
-                <p class="rn-panel-heading">Preview</p>
-                <div class="rn-preview-scroll">
-                    <div class="rn-preview-page">
-
-                        <!-- Cover -->
-                        <div style="display:flex;align-items:center;margin-bottom:4px;">
-                            <div style="width:80px;flex-shrink:0;">
-                                <img *ngIf="rnLogoPreviewUrl" [src]="rnLogoPreviewUrl"
-                                     style="height:32px;width:auto;" alt="logo" />
-                                <img *ngIf="!rnLogoPreviewUrl"
-                                     src="assets/images/StemzLogo.png"
-                                     style="height:32px;width:auto;"
-                                     onerror="this.style.display='none'" alt="logo" />
-                            </div>
-                            <div style="flex:1;text-align:center;font-weight:700;font-size:11pt;">
-                                {{selectedPlatform?.name || 'Glosys'}} Release Notes
-                            </div>
-                            <div style="width:80px;"></div>
-                        </div>
-                        <hr style="border:none;border-top:1.5px solid #000;margin:3px 0 10px;" />
-
-                        <p style="text-align:center;font-weight:600;font-size:9pt;margin:2px 0;">Release Notes</p>
-                        <p style="text-align:center;font-weight:600;font-size:9pt;margin:2px 0 10px;">
-                            Version {{rnPreviewItems[0]?.buildNo || 'Future Release'}}
-                        </p>
-
-                        <!-- Meta table -->
-                        <table class="prev-tbl" style="margin-bottom:8px;">
-                            <tr>
-                                <td class="prev-th" style="width:80px;">Date</td>
-                                <td class="prev-td">Today</td>
-                                <td class="prev-th" style="width:110px;">Modification Date:</td>
-                                <td class="prev-td">—</td>
-                            </tr>
-                            <tr>
-                                <td class="prev-th">Author(s):</td>
-                                <td class="prev-td">{{rnAuthorName || '—'}}</td>
-                                <td class="prev-th">Approved by:</td>
-                                <td class="prev-td">{{rnApproverName || '—'}}</td>
-                            </tr>
-                        </table>
-
-                        <p style="font-weight:700;font-size:8pt;margin:6px 0 2px;">Privacy Information</p>
-                        <p style="font-size:7.5pt;color:#333;margin-bottom:10px;line-height:1.4;">
-                            This document may contain information of a sensitive nature...
-                        </p>
-
-                        <!-- Summary table -->
-                        <table class="prev-tbl" style="margin-bottom:8px;">
-                            <tr><td class="prev-section" colspan="4">Overview</td></tr>
-                            <tr><td class="prev-td" colspan="4" style="font-size:7.5pt;">{{rnOverviewText}}</td></tr>
-                            <tr><td class="prev-section" colspan="4">New Features</td></tr>
-                            <tr>
-                                <td class="prev-th2" style="width:24px;">Sno</td>
-                                <td class="prev-th2" style="width:80px;">Department</td>
-                                <td class="prev-th2" colspan="2">Description</td>
-                            </tr>
-                            <ng-container *ngFor="let item of rnPreviewItems; let i = index">
-                                <tr *ngIf="item.typeName !== 'Issue'">
-                                    <td class="prev-td">{{i+1}}</td>
-                                    <td class="prev-td">{{item.departmentName || 'General'}}</td>
-                                    <td class="prev-td" colspan="2" style="font-size:7.5pt;">
-                                        {{item.description || item.title | slice:0:60}}{{(item.description || item.title)?.length > 60 ? '...' : ''}}
-                                    </td>
-                                </tr>
-                            </ng-container>
-                            <tr><td class="prev-section" colspan="4">Bugs / Fixes</td></tr>
-                            <tr>
-                                <td class="prev-th2" style="width:24px;">Sno</td>
-                                <td class="prev-th2" style="width:80px;">Department</td>
-                                <td class="prev-th2" style="width:60px;">Severity</td>
-                                <td class="prev-th2">Description</td>
-                            </tr>
-                            <ng-container *ngFor="let item of rnPreviewItems; let i = index">
-                                <tr *ngIf="item.typeName === 'Issue'">
-                                    <td class="prev-td">{{i+1}}</td>
-                                    <td class="prev-td">{{item.departmentName || 'General'}}</td>
-                                    <td class="prev-td">{{item.priorityName || 'Medium'}}</td>
-                                    <td class="prev-td" style="font-size:7.5pt;">
-                                        {{item.description || item.title | slice:0:50}}{{(item.description || item.title)?.length > 50 ? '...' : ''}}
-                                    </td>
-                                </tr>
-                            </ng-container>
-                        </table>
-
-                        <!-- Config impact preview -->
-                        <div *ngIf="rnConfigImpact" style="margin-top:6px;">
-                            <p style="font-weight:700;font-size:7.5pt;background:#d9d9d9;border:1px solid #999;padding:3px 5px;margin:0;">
-                                Configuration Impact:
-                            </p>
-                            <ul style="margin:3px 0 3px 16px;padding:0;font-size:7.5pt;">
-                                <li *ngFor="let line of rnConfigImpact.split('\n')" style="margin:1px 0;">{{line}}</li>
-                            </ul>
-                        </div>
-
-                        <!-- Detail sections indicator -->
-                        <div *ngIf="rnFeatureCount() + rnBugCount() > 0"
-                             style="margin-top:10px;padding:6px;background:#f0f4ff;border:1px dashed #93c5fd;border-radius:4px;font-size:7.5pt;color:#1d4ed8;text-align:center;">
-                            + {{rnFeatureCount() + rnBugCount()}} detailed section(s) with release notes will follow on subsequent pages
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- FOOTER -->
-        <div class="rn-modal-footer">
-            <button class="rn-btn-cancel" (click)="closeRNPreviewModal()">Cancel</button>
-            <button class="rn-btn-download" (click)="downloadRNFromPreview()">
-                ⬇ Download PDF
-            </button>
-        </div>
-
-    </div>
-</div>
-<div class="loading" *ngIf="loading">Loading portfolio...</div>

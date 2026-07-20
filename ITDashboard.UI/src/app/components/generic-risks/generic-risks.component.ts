@@ -6,7 +6,8 @@ import { FormsModule } from '@angular/forms';
 import { DashboardService } from '../../services/dashboard.service';
 import { AuthService } from '../../services/auth.service';
 import { RichTextEditorComponent } from '../rich-text-editor/rich-text-editor.component';
-import { Subscription } from 'rxjs';
+import { Subscription } from 'rxjs'; 
+
 
 export interface Risk {
     id?: number;
@@ -23,6 +24,7 @@ export interface Risk {
     entityId?: number;
     type?: string;
     category?: string;
+    isDraft?: boolean;
 }
 
 @Component({
@@ -40,6 +42,8 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
     private readonly SIZE_STORAGE_PREFIX = 'risk-card-size-';
     private readonly CARD_TRACK_WIDTH = 350;
     private readonly GRID_GAP = 20;
+    showViewModal: boolean = false;
+    viewRisk: Risk | null = null;
 
 
     toasts: { id: number; message: string; type: 'success' | 'error' | 'info'; visible: boolean }[] = [];
@@ -166,6 +170,45 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
             cards.forEach(card => this.resizeObserver!.observe(card));
         });
     }
+    getDescriptionPreview(html: string): string {
+        if (!html) return '';
+        // Remove HTML tags
+        const plainText = html.replace(/<[^>]*>/g, ' ');
+        const text = plainText.replace(/\s+/g, ' ').trim();
+
+        // Truncate to 150 characters
+        if (text.length <= 150) return text;
+        return text.substring(0, 150) + '...';
+    }
+
+    // ============================================
+    // VIEW MODAL METHODS
+    // ============================================
+
+    openViewModal(risk: Risk): void {
+        this.viewRisk = { ...risk };
+        this.showViewModal = true;
+        this.cdr.detectChanges();
+    }
+
+    closeViewModal(): void {
+        this.showViewModal = false;
+        setTimeout(() => {
+            this.viewRisk = null;
+            this.cdr.detectChanges();
+        }, 200);
+    }
+
+    editFromView(): void {
+        if (this.viewRisk && this.canEdit) {
+            const risk = this.viewRisk;
+            this.closeViewModal();
+            setTimeout(() => {
+                this.openEditModal(risk);
+            }, 300);
+        }
+    }
+
      
     private restoreCardSize(card: HTMLElement): void {
         const riskId = card.getAttribute('data-risk-id');
@@ -521,20 +564,23 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
 
     // generic-risks.component.ts - Fixed saveRisk method
 
-    saveRisk(): void {
+    saveRisk(isDraft: boolean = false): void {
         if (!this.canManage) return;
 
         const title = this.currentRisk.title?.trim() || '';
         const description = this.currentRisk.description?.trim() || '';
 
-        if (!title) {
-            this.showToast('Title is required.', 'error');
-            return;
-        }
+        // Only enforce required fields when actually submitting
+        if (!isDraft) {
+            if (!title) {
+                this.showToast('Title is required.', 'error');
+                return;
+            }
 
-        if (!description || description === '<p><br></p>' || description === '<p></p>' || description === '') {
-            this.showToast('Description is required.', 'error');
-            return;
+            if (!description || description === '<p><br></p>' || description === '<p></p>' || description === '') {
+                this.showToast('Description is required.', 'error');
+                return;
+            }
         }
 
         this.saving = true;
@@ -571,22 +617,20 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
             dueDate: dueDate,
             mitigationPlan: this.currentRisk.mitigationPlan || '',
             category: this.category,
-            entityId: this.entityId
+            entityId: this.entityId,
+            isDraft: isDraft   // ✅ new
         };
 
         console.log('📤 Sending to API:', riskData);
 
+        const successMsg = isDraft ? 'Saved as draft' : (this.isEditing ? 'Item updated successfully' : 'Item created successfully');
+
         if (this.isEditing && this.currentRisk.id) {
             this.dashboardService.updateKeyRisk(this.currentRisk.id, riskData).subscribe({
                 next: (updated: any) => {
-                    console.log('✅ Update response:', updated);
-
-                    // ✅ Close modal and reset saving flag
                     this.saving = false;
                     this.closeModal();
-                    this.showToast('Item updated successfully', 'success');
-
-                    // ✅ Reload data immediately
+                    this.showToast(successMsg, 'success');
                     this.loadRisks();
                     this.cdr.detectChanges();
                 },
@@ -600,14 +644,9 @@ export class GenericRisksComponent implements OnInit, OnDestroy {
         } else {
             this.dashboardService.createKeyRisk(riskData).subscribe({
                 next: (created: any) => {
-                    console.log('✅ Create response:', created);
-
-                    // ✅ Close modal and reset saving flag
                     this.saving = false;
                     this.closeModal();
-                    this.showToast('Item created successfully', 'success');
-
-                    // ✅ Reload data immediately (not after delay)
+                    this.showToast(successMsg, 'success');
                     this.loadRisks();
                     this.cdr.detectChanges();
                 },

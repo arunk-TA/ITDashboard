@@ -5,7 +5,13 @@
     "changeOrigin": true,
     "logLevel": "debug"
   },
-  "/moh": {
+  "/MOH/proxy": {
+    "target": "http://20.0.2.215:5000",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  },
+  "/MOH/token": {
     "target": "http://20.0.2.215:5000",
     "secure": false,
     "changeOrigin": true,
