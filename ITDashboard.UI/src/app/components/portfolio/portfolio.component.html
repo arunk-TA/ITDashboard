@@ -359,7 +359,7 @@
                                      *ngIf="buildDocs['ticket_' + item.id] && buildDocs['ticket_' + item.id].length > 0">
                                     <div class="file-item"
                                          *ngFor="let doc of buildDocs['ticket_' + item.id]">
-                                        <a [href]="apiBaseUrl + doc.filePath"
+                                        <a [href]="apiBaseUrl + (doc.downloadUrl || doc.filePath)"
                                            target="_blank"
                                            class="file-name"
                                            title="{{doc.fileName}}">
@@ -607,7 +607,7 @@
                                          *ngIf="buildDocs['ticket_' + item.id] && buildDocs['ticket_' + item.id].length > 0">
                                         <div class="file-item"
                                              *ngFor="let doc of buildDocs['ticket_' + item.id]">
-                                            <a [href]="apiBaseUrl + doc.filePath"
+                                            <a [href]="apiBaseUrl + (doc.downloadUrl || doc.filePath)"
                                                target="_blank"
                                                class="file-name"
                                                title="{{doc.fileName}}">
@@ -703,7 +703,7 @@
                         <input type="file" [id]="'fileInput_build_' + build.buildNo" style="display:none" (change)="onDocFileSelectedForBuild($event, build)" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip" />
                         <span class="uploaded-files-inline" *ngIf="buildDocs[build.buildNo] && buildDocs[build.buildNo].length > 0">
                             <span class="file-item" *ngFor="let doc of buildDocs[build.buildNo]">
-                                <a [href]="apiBaseUrl + doc.filePath" target="_blank" class="file-name">{{doc.fileName}}</a>
+                                <a [href]="apiBaseUrl + (doc.downloadUrl || doc.filePath)" target="_blank" class="file-name">{{doc.fileName}}</a>
                                 <button class="delete-file-btn" (click)="deleteDocForBuild(build, doc.id); $event.stopPropagation()" title="Delete">🗑️</button>
                             </span>
                         </span>
@@ -848,7 +848,7 @@
                 <div class="doc-item" *ngFor="let doc of buildDocs['ticket_' + item.id]">
                     <span class="doc-icon">{{getFileIcon(doc.fileName)}}</span>
                     <div class="doc-info">
-                        <a [href]="apiBaseUrl + doc.filePath" target="_blank" class="doc-name">{{doc.fileName}}</a>
+                        <a [href]="apiBaseUrl + (doc.downloadUrl || doc.filePath)" target="_blank" class="doc-name">{{doc.fileName}}</a>
                         <span class="doc-date">{{doc.uploadedDate | date:'dd MMM yyyy'}}</span>
                     </div>
                     <button class="btn-delete-doc" type="button" (click)="deleteTicketDoc(item, doc.id)" title="Delete">✖</button>
@@ -932,7 +932,7 @@
 
             <!-- RIGHT COLUMN: Donut Panel -->
             <div class="bcp-donut-panel">
-                <div class="bcp-donut-box"> 
+                <div class="bcp-donut-box">
                     <canvas #bcpResourceCanvas></canvas>
                 </div>
                 <div class="bcp-donut-legend">
@@ -1053,6 +1053,59 @@
         </div>
         <div class="desc-modal-footer">
             <button class="btn btn-secondary" (click)="closeDescriptionModal()">Close</button>
+        </div>
+    </div>
+</div>
+<!-- ==================== UPDATE INCIDENT MODAL ==================== -->
+<div class="modal-overlay" *ngIf="showUpdateIncidentModal" (click)="closeUpdateIncidentModal()">
+    <div class="create-ticket-modal" (click)="$event.stopPropagation()" style="max-width: 550px;">
+        <div class="modal-header">
+            <div class="modal-title">
+                <span>🔄</span>
+                <span>Include Incident</span>
+            </div>
+            <button class="modal-close-btn" (click)="closeUpdateIncidentModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Search Incident (ticket no / title)</label>
+                    <input type="text" class="form-control" placeholder="Type at least 2 characters..."
+                           [(ngModel)]="incidentSearchTerm" (input)="onIncidentSearchInput()" />
+                </div>
+            </div>
+
+            <div *ngIf="searchingIncidents" style="padding:10px 0;color:#5c7a9a;font-size:13px;">
+                Searching...
+            </div>
+
+            <div *ngIf="!searchingIncidents && incidentSearchResults.length > 0"
+                 style="max-height:240px;overflow-y:auto;border:1px solid #d6e8f5;border-radius:8px;">
+                <div *ngFor="let ticket of incidentSearchResults"
+                     (click)="selectIncident(ticket)"
+                     [style.background]="selectedIncident?.id === ticket.id ? '#eef4fb' : '#fff'"
+                     style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f4f8;">
+                    <div style="font-weight:600;font-size:13px;color:#1a3a5c;">
+                        #{{ticket.ticketNo || ticket.id}} — {{ticket.title}}
+                    </div>
+                    <div style="font-size:11px;color:#5c7a9a;margin-top:2px;">
+                        {{ticket.statusName}} · {{ticket.departmentName || 'General'}}
+                    </div>
+                </div>
+            </div>
+
+            <div *ngIf="!searchingIncidents && incidentSearchTerm.trim().length >= 2 && incidentSearchResults.length === 0"
+                 style="padding:10px 0;color:#5c7a9a;font-size:13px;">
+                No matching incidents found.
+            </div>
+
+            <div class="form-actions">
+                <button class="btn-cancel" (click)="closeUpdateIncidentModal()">Cancel</button>
+                <button class="btn-save" [disabled]="!selectedIncident || activatingIncident" (click)="confirmUpdateIncident()">
+                    <span *ngIf="activatingIncident" class="spinner-small"></span>
+                    {{activatingIncident ? 'Updating...' : 'Include Incident'}}
+                </button>
+            </div>
         </div>
     </div>
 </div>

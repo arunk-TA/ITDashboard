@@ -1,14 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using ITDashboard.API.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
+[Authorize]
 [ApiController]
 [Route("presentations")]
 public class PresentationsController : ControllerBase
 {
     private readonly string _storagePath;
+    private readonly DownloadTokenService _downloadTokens;
 
-    public PresentationsController(IConfiguration config)
+    public PresentationsController(IConfiguration config, DownloadTokenService downloadTokens)
     {
         _storagePath = config["PresentationSettings:StoragePath"]!;
+        _downloadTokens = downloadTokens;
         if (!Directory.Exists(_storagePath))
             Directory.CreateDirectory(_storagePath);
     }
@@ -24,7 +29,8 @@ public class PresentationsController : ControllerBase
                 fileName = fi.Name,
                 displayName = Path.GetFileNameWithoutExtension(fi.Name).Replace('_', ' ').Replace('-', ' '),
                 sizeKb = Math.Round(fi.Length / 1024.0, 1),
-                modifiedDate = fi.LastWriteTime
+                modifiedDate = fi.LastWriteTime,
+                downloadToken = _downloadTokens.CreateToken(fi.Name)
             })
             .OrderByDescending(f => f.modifiedDate);
 
@@ -56,11 +62,20 @@ public class PresentationsController : ControllerBase
         return Ok(new { message = "Uploaded successfully.", fileName = safeName });
     }
 
-    // GET api/presentations/download/{fileName}
+    // GET api/presentations/download/{fileName}?token=...
+    // Requires either an authenticated session or a short-lived signed token issued by GetList.
+    [AllowAnonymous]
     [HttpGet("download/{fileName}")]
-    public IActionResult Download(string fileName)
+    public IActionResult Download(string fileName, [FromQuery] string? token)
     {
         var safeName = Path.GetFileName(fileName); // prevent path traversal
+
+        if (User.Identity?.IsAuthenticated != true &&
+            !_downloadTokens.ValidateToken(safeName, token))
+        {
+            return Unauthorized();
+        }
+
         var filePath = Path.Combine(_storagePath, safeName);
 
         if (!System.IO.File.Exists(filePath))

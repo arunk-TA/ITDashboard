@@ -57,6 +57,7 @@ builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<MOHService>();
 builder.Services.AddSingleton<HelpdeskTokenService>();
+builder.Services.AddSingleton<DownloadTokenService>();
 
 // ✅ Update CORS to be more specific
 builder.Services.AddCors(options =>
@@ -81,6 +82,19 @@ if (!string.IsNullOrEmpty(routePrefix))
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// Uploaded build documents must not be served as public static files.
+// They are only reachable through the authorized download endpoint.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/uploads"))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
 
 app.UseDefaultFiles();
 app.UseStaticFiles();

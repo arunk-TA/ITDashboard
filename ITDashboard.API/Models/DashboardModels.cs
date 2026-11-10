@@ -300,6 +300,7 @@ public class BuildDocumentModel
     public long? FileSize { get; set; }
     public string? UploadedBy { get; set; }
     public DateTime? UploadedDate { get; set; }
+    public string? DownloadUrl { get; set; }
 }
 // Models/CreateTicketRequest.cs
 public class CreateTicketRequest

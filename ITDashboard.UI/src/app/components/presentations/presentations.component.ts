@@ -9,6 +9,7 @@ interface PPTFile {
     displayName: string;
     sizeKb: number;
     modifiedDate: string;
+    downloadToken: string;
 }
 
 @Component({
@@ -132,8 +133,13 @@ export class PresentationsComponent implements OnInit {
         this.loadPPTPreview(ppt);
     }
 
+    private getDownloadUrl(ppt: PPTFile): string {
+        const token = ppt.downloadToken ? `?token=${encodeURIComponent(ppt.downloadToken)}` : '';
+        return `${window.location.origin}${this.apiBase}/download/${encodeURIComponent(ppt.fileName)}${token}`;
+    }
+
     loadPPTPreview(ppt: PPTFile): void {
-        const fileUrl = `${window.location.origin}${this.apiBase}/download/${encodeURIComponent(ppt.fileName)}`;
+        const fileUrl = this.getDownloadUrl(ppt);
         const encodedUrl = encodeURIComponent(fileUrl);
 
         if (this.viewerType === 'google') {
@@ -155,7 +161,7 @@ export class PresentationsComponent implements OnInit {
 
     downloadPresentation(ppt: PPTFile): void {
         this.isDownloading = true;
-        window.open(`${window.location.origin}${this.apiBase}/download/${encodeURIComponent(ppt.fileName)}`, '_blank');
+        window.open(this.getDownloadUrl(ppt), '_blank');
         setTimeout(() => this.isDownloading = false, 2000);
     }
 

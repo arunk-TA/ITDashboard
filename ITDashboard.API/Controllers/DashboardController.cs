@@ -9,7 +9,7 @@ using System.Text.Json;
 using static Org.BouncyCastle.Math.EC.ECCurve;
 
 namespace ITDashboard.API.Controllers;
-[AllowAnonymous]
+[Authorize]
 [ApiController]
 [Route("[controller]")]
 public class DashboardController : ControllerBase
@@ -17,6 +17,7 @@ public class DashboardController : ControllerBase
     private readonly IDashboardRepository _repo;
     private readonly IConfiguration _config;
     private readonly HelpdeskTokenService _helpdeskTokenService;
+    private readonly DownloadTokenService _downloadTokens;
 
     // Session cache [AllowAnonymous]
     private static CookieContainer _helpdeskCookies = new CookieContainer();
@@ -25,12 +26,12 @@ public class DashboardController : ControllerBase
     private static string? _cachedCsrfToken = null;  // ← ADD
     private static string? _cachedLoginResponse = null;
 
-    public DashboardController(IDashboardRepository repo, IConfiguration config, HelpdeskTokenService helpdeskTokenService)
+    public DashboardController(IDashboardRepository repo, IConfiguration config, HelpdeskTokenService helpdeskTokenService, DownloadTokenService downloadTokens)
     {
         _repo = repo;
         _config = config;
         _helpdeskTokenService = helpdeskTokenService; // ← add
-
+        _downloadTokens = downloadTokens;
     }
 
     // GET api/dashboard/entities
@@ -490,7 +491,38 @@ public class DashboardController : ControllerBase
     [FromQuery] int? platformId)
     {
         var docs = await _repo.GetBuildDocumentsAsync(buildNo, platformId);
+
+        foreach (var doc in docs)
+        {
+            var fileName = Path.GetFileName(doc.FilePath);
+            var token = _downloadTokens.CreateToken($"build-doc/{fileName}");
+            doc.DownloadUrl = $"{Request.PathBase}/dashboard/build-documents/download/{Uri.EscapeDataString(fileName)}?token={Uri.EscapeDataString(token)}";
+        }
+
         return Ok(docs);
+    }
+
+    // GET api/dashboard/build-documents/download/{fileName}?token=...
+    // Files under wwwroot/uploads are blocked from direct static access; use this endpoint instead.
+    [AllowAnonymous]
+    [HttpGet("build-documents/download/{fileName}")]
+    public IActionResult DownloadBuildDocument(string fileName, [FromQuery] string? token)
+    {
+        var safeName = Path.GetFileName(fileName);
+
+        if (User.Identity?.IsAuthenticated != true &&
+            !_downloadTokens.ValidateToken($"build-doc/{safeName}", token))
+        {
+            return Unauthorized();
+        }
+
+        var uploadDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "build-docs");
+        var filePath = Path.Combine(uploadDir, safeName);
+
+        if (!System.IO.File.Exists(filePath))
+            return NotFound();
+
+        return PhysicalFile(filePath, "application/octet-stream", safeName);
     }
 
     [HttpGet("helpdesk/debug-asset")]
